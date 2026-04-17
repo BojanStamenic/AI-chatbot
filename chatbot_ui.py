@@ -554,6 +554,36 @@ HTML = r"""<!doctype html>
       border-color: transparent;
     }
 
+    /* mic button */
+    .btn-mic {
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      border-radius: var(--radius-sm);
+      width: 46px;
+      flex-shrink: 0;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 180ms ease;
+    }
+    .btn-mic:hover {
+      background: var(--bg-card); color: var(--text-primary);
+      border-color: rgba(255,255,255,0.12);
+      transform: translateY(-1px);
+    }
+    .btn-mic.recording {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.45);
+      color: #f87171;
+      animation: micPulse 1.2s ease-in-out infinite;
+    }
+    .btn-mic:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+    @keyframes micPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
+      60%  { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
     /* ═══════════════════════════════════════════
        CHAT AREA
        ═══════════════════════════════════════════ */
@@ -901,6 +931,9 @@ HTML = r"""<!doctype html>
         <div class="input-wrap">
           <input id="message" type="text" placeholder="Ask BojanBot anything..." autocomplete="off" />
         </div>
+        <button class="btn-mic" id="micBtn" title="Hold to record voice">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
         <button class="btn btn-accent" id="sendBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           Send
@@ -1218,6 +1251,71 @@ function hideTyping() {
   if (el) el.remove();
 }
 
+/* ── voice recording ─────────────────────────── */
+
+const micBtn = document.getElementById("micBtn");
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+micBtn.addEventListener("click", toggleRecording);
+
+async function toggleRecording() {
+  if (isRecording) {
+    mediaRecorder.stop();
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+    mediaRecorder.ondataavailable = function(e) {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async function() {
+      isRecording = false;
+      micBtn.classList.remove("recording");
+      stream.getTracks().forEach(function(t) { t.stop(); });
+
+      const blob = new Blob(audioChunks, { type: mimeType });
+      await transcribeAudio(blob, mimeType);
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    micBtn.classList.add("recording");
+  } catch (err) {
+    addMsg("Microphone access denied: " + err.message, "error", false, false);
+  }
+}
+
+async function transcribeAudio(blob, mimeType) {
+  micBtn.disabled = true;
+  const ext = mimeType.includes("ogg") ? "ogg" : "webm";
+  const formData = new FormData();
+  formData.append("audio", blob, "recording." + ext);
+
+  try {
+    const res = await fetch("/transcribe", { method: "POST", body: formData });
+    const data = await res.json();
+    if (data.error) {
+      addMsg("Transcription error: " + data.error, "error", false, false);
+    } else if (data.text && data.text.trim()) {
+      msgInput.value = data.text.trim();
+      msgInput.focus();
+    }
+  } catch (_) {
+    addMsg("Transcription failed — check server.", "error", false, false);
+  } finally {
+    micBtn.disabled = false;
+  }
+}
+
 /* ── send / load / reset ─────────────────────── */
 
 async function sendMessage() {
@@ -1384,7 +1482,54 @@ class Handler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "Not found"})
 
+    def _parse_multipart(self):
+        """Extract the first file field from a multipart/form-data request."""
+        content_type = self.headers.get("Content-Type", "")
+        if "boundary=" not in content_type:
+            return None, None
+        boundary = content_type.split("boundary=")[-1].strip().encode()
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length)
+        # Split on boundary lines
+        delimiter = b"--" + boundary
+        parts = body.split(delimiter)
+        for part in parts[1:]:
+            if part in (b"--\r\n", b"--", b"\r\n", b""):
+                continue
+            # Split headers from body
+            if b"\r\n\r\n" in part:
+                raw_headers, file_data = part.split(b"\r\n\r\n", 1)
+                if file_data.endswith(b"\r\n"):
+                    file_data = file_data[:-2]
+                # Parse filename from Content-Disposition
+                header_text = raw_headers.decode("utf-8", errors="replace")
+                filename = "recording.webm"
+                for header_line in header_text.split("\r\n"):
+                    if "filename=" in header_line:
+                        fname_part = header_line.split("filename=")[-1].strip().strip('"')
+                        if fname_part:
+                            filename = fname_part
+                return filename, file_data
+        return None, None
+
     def do_POST(self):
+        if self.path == "/transcribe":
+            filename, audio_data = self._parse_multipart()
+            if not audio_data:
+                self._send_json(400, {"error": "No audio data received."})
+                return
+            try:
+                ext = filename.rsplit(".", 1)[-1] if "." in filename else "webm"
+                mime = f"audio/{ext}"
+                response = bot.client.audio.transcriptions.create(
+                    file=(filename, audio_data, mime),
+                    model="whisper-large-v3-turbo",
+                )
+                self._send_json(200, {"text": response.text})
+            except Exception as exc:
+                self._send_json(500, {"error": f"Transcription failed: {exc}"})
+            return
+
         try:
             payload = self._read_body()
         except json.JSONDecodeError:
