@@ -399,6 +399,43 @@
       border-color: transparent;
     }
 
+    /* wake word button */
+    .btn-wake {
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 12px; font-weight: 700;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 7px;
+      transition: all 180ms ease;
+      white-space: nowrap;
+    }
+    .btn-wake:hover {
+      background: var(--bg-card); color: var(--text-secondary);
+      border-color: rgba(255,255,255,0.12);
+    }
+    .btn-wake.active {
+      background: rgba(52, 211, 153, 0.08);
+      border-color: rgba(52, 211, 153, 0.35);
+      color: var(--success);
+    }
+    .btn-wake .wake-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+    }
+    .btn-wake.active .wake-dot {
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .btn-wake.listening {
+      background: rgba(239, 127, 26, 0.1);
+      border-color: var(--border-accent);
+      color: var(--accent);
+      animation: micPulse 1.2s ease-in-out infinite;
+    }
+
     /* mic button */
     .btn-mic {
       border: 1px solid var(--border);
@@ -729,6 +766,10 @@
       <div class="header-right">
         <div class="status-dot"></div>
         <span class="status-label">Online</span>
+        <button class="btn-wake" id="wakeBtn" title='Say "Hey JARVIS" to activate'>
+          <span class="wake-dot"></span>
+          Hey JARVIS
+        </button>
         <button class="btn btn-ghost" id="clearBtn" title="Reset this chat">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           Reset
@@ -802,7 +843,7 @@
           <div class="stat">Model <span class="stat-val">llama-3.1-8b</span></div>
         </div>
         <div class="stats-right">
-          <kbd>Enter</kbd> to send &middot; <kbd>Shift+Enter</kbd> for file
+          <kbd>Enter</kbd> to send &middot; <kbd>Shift+Enter</kbd> for file &middot; <kbd>Alt+V</kbd> voice
         </div>
       </div>
     </div>
@@ -1167,6 +1208,14 @@ async function sendMessage() {
   const text = msgInput.value.trim();
   if (!text) return;
 
+  // voice trigger commands
+  const voiceTriggers = ["/voice", "start voice", "voice on", "pokreni glas", "slušaj"];
+  if (voiceTriggers.includes(text.toLowerCase())) {
+    msgInput.value = "";
+    toggleRecording();
+    return;
+  }
+
   turns++;
   syncStats();
   addMsg(text, "user", false, false);
@@ -1242,6 +1291,141 @@ msgInput.addEventListener("keydown", function(e) {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   if (e.key === "Enter" && e.shiftKey)  { e.preventDefault(); fileInput.focus(); }
 });
+
+// Alt+V anywhere on the page toggles voice recording
+document.addEventListener("keydown", function(e) {
+  if (e.altKey && e.key.toLowerCase() === "v" && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    toggleRecording();
+  }
+});
+
+/* ── wake word detection ──────────────────────── */
+
+const wakeBtn      = document.getElementById("wakeBtn");
+const SpeechRec    = window.SpeechRecognition || window.webkitSpeechRecognition;
+const WAKE_PHRASES = [
+  "hey jarvis", "jarvis", "wake up jarvis", "yo jarvis",
+  "wake up", "hello", "hey bot"
+];
+
+let wakeRecognition   = null;
+let commandRecognition = null;
+let wakeWordEnabled   = false;
+let commandActive     = false;
+
+wakeBtn.addEventListener("click", toggleWakeWord);
+
+function toggleWakeWord() {
+  if (!SpeechRec) {
+    addMsg("Wake word nije podržan u ovom browseru. Koristi Chrome ili Edge.", "error", false, false);
+    return;
+  }
+  wakeWordEnabled = !wakeWordEnabled;
+  updateWakeBtn();
+
+  if (wakeWordEnabled) {
+    startWakeListen();
+  } else {
+    stopWakeListen();
+    addMsg("JARVIS offline. Have a good one.", "system", false, false);
+  }
+}
+
+function updateWakeBtn() {
+  wakeBtn.classList.toggle("active", wakeWordEnabled);
+  wakeBtn.title = wakeWordEnabled
+    ? 'Online — say "Hey JARVIS" to fire up the AI (click to disable)'
+    : 'Click to activate JARVIS wake detection';
+}
+
+function startWakeListen() {
+  if (!SpeechRec || commandActive) return;
+
+  wakeRecognition = new SpeechRec();
+  wakeRecognition.continuous    = true;
+  wakeRecognition.interimResults = true;
+  wakeRecognition.lang           = "en-US";
+
+  wakeRecognition.onresult = function(e) {
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      var t = e.results[i][0].transcript.toLowerCase();
+      if (WAKE_PHRASES.some(function(p) { return t.includes(p); })) {
+        wakeRecognition.abort();
+        onWakeWordDetected();
+        return;
+      }
+    }
+  };
+
+  wakeRecognition.onend = function() {
+    if (wakeWordEnabled && !commandActive) {
+      setTimeout(function() {
+        try { wakeRecognition.start(); } catch(_) {}
+      }, 300);
+    }
+  };
+
+  wakeRecognition.onerror = function(e) {
+    if (e.error === "not-allowed") {
+      wakeWordEnabled = false;
+      updateWakeBtn();
+      addMsg("Mikrofonski pristup odbijen — dozvoli u browseru.", "error", false, false);
+    }
+  };
+
+  try {
+    wakeRecognition.start();
+    addMsg("JARVIS online. At your service, sir — say \"Hey JARVIS\" whenever you need me.", "system", false, false);
+  } catch(_) {}
+}
+
+function stopWakeListen() {
+  try { wakeRecognition && wakeRecognition.abort(); } catch(_) {}
+  try { commandRecognition && commandRecognition.abort(); } catch(_) {}
+  commandActive = false;
+  wakeBtn.classList.remove("listening");
+}
+
+function onWakeWordDetected() {
+  commandActive = true;
+  wakeBtn.classList.add("listening");
+
+  commandRecognition = new SpeechRec();
+  commandRecognition.lang           = "en-US";
+  commandRecognition.interimResults  = false;
+  commandRecognition.maxAlternatives = 1;
+
+  commandRecognition.onresult = function(e) {
+    var text = e.results[0][0].transcript.trim();
+    if (text) {
+      msgInput.value = text;
+      sendMessage();
+    }
+  };
+
+  commandRecognition.onend = function() {
+    commandActive = false;
+    wakeBtn.classList.remove("listening");
+    if (wakeWordEnabled) {
+      setTimeout(function() {
+        try { wakeRecognition.start(); } catch(_) {}
+      }, 400);
+    }
+  };
+
+  commandRecognition.onerror = function() {
+    commandActive = false;
+    wakeBtn.classList.remove("listening");
+    if (wakeWordEnabled) {
+      setTimeout(function() {
+        try { wakeRecognition.start(); } catch(_) {}
+      }, 400);
+    }
+  };
+
+  try { commandRecognition.start(); } catch(_) {}
+}
 
 fileInput.addEventListener("keydown", function(e) {
   if (e.key === "Enter") { e.preventDefault(); loadFile(); }
