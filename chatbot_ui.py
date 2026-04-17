@@ -555,6 +555,23 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(500, {"error": f"Image generation failed: {exc}"})
             return
 
+        # Staticki fajlovi (CSS, JS, slike) iz static/ direktorijuma
+        static_path = self.path.lstrip("/")
+        if ".." not in static_path:
+            filepath = os.path.join(STATIC_DIR, static_path)
+            if os.path.isfile(filepath):
+                ext = os.path.splitext(filepath)[1].lower()
+                ctypes = {
+                    ".css": "text/css; charset=utf-8",
+                    ".js": "application/javascript; charset=utf-8",
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                    ".svg": "image/svg+xml",
+                    ".ico": "image/x-icon",
+                }
+                self._send_file(filepath, ctypes.get(ext, "application/octet-stream"))
+                return
+
         self._send_json(404, {"error": "Not found"})
 
     # ── POST rute ───────────────────────────────────────────

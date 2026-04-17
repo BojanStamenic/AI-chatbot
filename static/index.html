@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/widget.css" />
   <style>
 
     /* ═══════════════════════════════════════════
@@ -842,6 +843,19 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           Reset
         </button>
+        <!-- widget toggle — ulazi u widget mode -->
+        <button class="btn btn-ghost" id="widgetToggle" title="Widget mode">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+          Widget
+        </button>
+        <!-- widget-only: expand nazad na full screen -->
+        <button class="btn-widget-ctrl" id="widgetExpand" title="Full screen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        </button>
+        <!-- widget-only: minimize u bubble -->
+        <button class="btn-widget-ctrl" id="widgetMinimize" title="Minimize">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
       </div>
     </header>
 
@@ -911,6 +925,74 @@
     </div>
   </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FIKTIVNI SAJT — pozadina vidljiva samo u widget modu
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="fake-site" id="fakeSite">
+  <nav class="fake-nav">
+    <div class="fake-nav-brand">Angry<span>Lynx</span></div>
+    <div class="fake-nav-links">
+      <a href="#">Products</a>
+      <a href="#">Solutions</a>
+      <a href="#">Pricing</a>
+      <a href="#">About</a>
+    </div>
+    <button class="fake-nav-cta">Get Started</button>
+  </nav>
+
+  <div class="fake-hero">
+    <h1>Build Smarter with <span>AngryLynx</span></h1>
+    <p>AI-powered tools for modern teams. Ship faster, automate more, stay ahead of the competition.</p>
+    <button class="fake-hero-btn">Start Free Trial</button>
+  </div>
+
+  <div class="fake-features">
+    <div class="fake-feature">
+      <span class="fake-feature-icon">&#128640;</span>
+      <h3>Lightning Fast</h3>
+      <p>Deploy in seconds, not hours. Our infrastructure scales automatically with your needs.</p>
+    </div>
+    <div class="fake-feature">
+      <span class="fake-feature-icon">&#128274;</span>
+      <h3>Enterprise Security</h3>
+      <p>SOC2 compliant with end-to-end encryption and zero-trust architecture built in.</p>
+    </div>
+    <div class="fake-feature">
+      <span class="fake-feature-icon">&#128202;</span>
+      <h3>Smart Analytics</h3>
+      <p>Real-time insights powered by AI. Make data-driven decisions instantly.</p>
+    </div>
+  </div>
+
+  <div class="fake-social">
+    <p>Trusted by teams worldwide</p>
+    <div class="fake-social-logos">
+      <span>Acme Co</span>
+      <span>Globex</span>
+      <span>Initech</span>
+      <span>Umbrella</span>
+      <span>Stark</span>
+    </div>
+  </div>
+
+  <div class="fake-cta">
+    <h2>Ready to get started?</h2>
+    <p>Join thousands of teams already building with AngryLynx.</p>
+    <button class="fake-hero-btn">Start Free Trial</button>
+  </div>
+
+  <div class="fake-footer">
+    <p>&copy; 2026 AngryLynx Inc. All rights reserved. &middot; Privacy &middot; Terms</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CHAT BUBBLE — plutajuce dugme kad je widget minimizovan
+     ═══════════════════════════════════════════════════════════════ -->
+<button class="chat-bubble" id="chatBubble" title="Open chat">
+  <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</button>
 
 <!-- ═══════════════════════════════════════════════════════════════
      JAVASCRIPT
@@ -1761,6 +1843,41 @@ async function fetchWeather() {
     console.warn("Weather fetch failed:", err);
   }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   WIDGET MODE — smanjeni chatbot na fiktivnom sajtu
+   Toggle dugme prebacuje izmedju full-screen i floating widgeta.
+   U widget modu se prikazuje fiktivni sajt u pozadini.
+   ═══════════════════════════════════════════════════════════════ */
+
+const widgetToggle   = document.getElementById("widgetToggle");
+const widgetMinimize = document.getElementById("widgetMinimize");
+const widgetExpand   = document.getElementById("widgetExpand");
+const chatBubble     = document.getElementById("chatBubble");
+
+// Ulazak u widget mode
+widgetToggle.addEventListener("click", function() {
+  document.body.classList.add("widget-mode", "widget-open");
+  msgInput.focus();
+});
+
+// Expand nazad na full screen
+widgetExpand.addEventListener("click", function() {
+  document.body.classList.remove("widget-mode", "widget-open");
+  msgInput.focus();
+});
+
+// Minimize widget u bubble
+widgetMinimize.addEventListener("click", function() {
+  document.body.classList.remove("widget-open");
+});
+
+// Otvori widget iz bubblea
+chatBubble.addEventListener("click", function() {
+  document.body.classList.add("widget-open");
+  msgInput.focus();
+});
 
 
 /* ═══════════════════════════════════════════════════════════════

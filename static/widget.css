@@ -1,0 +1,490 @@
+/* ═══════════════════════════════════════════════════════════════
+   WIDGET MODE — smanjeni chatbot na fiktivnom sajtu
+   Ovaj fajl kontrolise:
+   1. Izgled fiktivnog sajta u pozadini
+   2. Transformaciju chata u plutajuci widget
+   3. Chat bubble kad je widget zatvoren
+   4. Widget-only kontrole u headeru
+   ═══════════════════════════════════════════════════════════════ */
+
+
+/* ═══════════════════════════════════════════
+   FIKTIVNI SAJT — AngryLynx landing page
+   ═══════════════════════════════════════════ */
+
+.fake-site {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #f8f9fb;
+  z-index: 0;
+  overflow-y: auto;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #1a1a2e;
+}
+
+body.widget-mode .fake-site {
+  display: block;
+}
+
+/* navigacija */
+.fake-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 48px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8ed;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.fake-nav-brand {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.fake-nav-brand span {
+  color: #ef7f1a;
+}
+
+.fake-nav-links {
+  display: flex;
+  gap: 32px;
+}
+
+.fake-nav-links a {
+  color: #666;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 150ms;
+}
+
+.fake-nav-links a:hover {
+  color: #1a1a2e;
+}
+
+.fake-nav-cta {
+  background: #ef7f1a;
+  color: #fff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+.fake-nav-cta:hover {
+  background: #d66908;
+}
+
+/* hero sekcija */
+.fake-hero {
+  text-align: center;
+  padding: 100px 24px 80px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.fake-hero h1 {
+  font-size: 52px;
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: -1.5px;
+  margin-bottom: 20px;
+  color: #1a1a2e;
+}
+
+.fake-hero h1 span {
+  color: #ef7f1a;
+}
+
+.fake-hero p {
+  font-size: 18px;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 36px;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.fake-hero-btn {
+  background: #1a1a2e;
+  color: #fff;
+  border: none;
+  padding: 15px 36px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.fake-hero-btn:hover {
+  background: #2d2d52;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* feature kartice */
+.fake-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+.fake-feature {
+  background: #fff;
+  border-radius: 16px;
+  padding: 36px 28px;
+  text-align: center;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.05);
+  transition: all 200ms;
+}
+
+.fake-feature:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+}
+
+.fake-feature-icon {
+  font-size: 40px;
+  margin-bottom: 18px;
+  display: block;
+}
+
+.fake-feature h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #1a1a2e;
+}
+
+.fake-feature p {
+  font-size: 14px;
+  color: #777;
+  line-height: 1.6;
+}
+
+/* social proof */
+.fake-social {
+  text-align: center;
+  padding: 60px 24px;
+  background: #fff;
+  border-top: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+}
+
+.fake-social p {
+  font-size: 13px;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.fake-social-logos {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #d0d0d0;
+}
+
+/* CTA sekcija */
+.fake-cta {
+  text-align: center;
+  padding: 80px 24px;
+}
+
+.fake-cta h2 {
+  font-size: 32px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  color: #1a1a2e;
+}
+
+.fake-cta p {
+  font-size: 16px;
+  color: #777;
+  margin-bottom: 28px;
+}
+
+/* footer */
+.fake-footer {
+  text-align: center;
+  padding: 28px 24px;
+  font-size: 13px;
+  color: #aaa;
+  border-top: 1px solid #eee;
+}
+
+
+/* ═══════════════════════════════════════════
+   CHAT BUBBLE — plutajuce dugme kad je widget minimizovan
+   ═══════════════════════════════════════════ */
+
+.chat-bubble {
+  display: none;
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ef7f1a, #d66908);
+  cursor: pointer;
+  z-index: 1001;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 24px rgba(239, 127, 26, 0.4);
+  transition: all 200ms ease;
+  border: none;
+}
+
+.chat-bubble:hover {
+  transform: scale(1.1);
+  box-shadow: 0 8px 32px rgba(239, 127, 26, 0.55);
+}
+
+.chat-bubble:active {
+  transform: scale(1.02);
+}
+
+.chat-bubble svg {
+  width: 28px;
+  height: 28px;
+  fill: #fff;
+}
+
+/* Prikazuj bubble samo u widget modu kad je chat ZATVOREN */
+body.widget-mode .chat-bubble {
+  display: flex;
+}
+
+body.widget-mode.widget-open .chat-bubble {
+  display: none;
+}
+
+
+/* ═══════════════════════════════════════════
+   WIDGET LAYOUT — transformacija iz full-screen u floating
+   ═══════════════════════════════════════════ */
+
+/* Ugasi pozadinske efekte */
+body.widget-mode::before,
+body.widget-mode::after {
+  display: none;
+}
+
+body.widget-mode {
+  background: #f8f9fb;
+}
+
+/* Sakrij layout kad je widget zatvoren (samo bubble vidljiv) */
+body.widget-mode .layout {
+  display: none;
+}
+
+/* Prikazuj layout kao floating widget kad je otvoren */
+body.widget-mode.widget-open .layout {
+  display: flex;
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 400px;
+  height: 620px;
+  border-radius: 20px;
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  z-index: 1000;
+  animation: widgetSlideUp 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes widgetSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Sakrij sidebar */
+body.widget-mode .sidebar {
+  display: none;
+}
+
+
+/* ═══════════════════════════════════════════
+   WIDGET HEADER — kompaktniji, sa minimize/expand
+   ═══════════════════════════════════════════ */
+
+body.widget-mode .header {
+  padding: 10px 14px;
+}
+
+body.widget-mode .header-title {
+  font-size: 14px;
+  max-width: 140px;
+}
+
+/* Sakrij full-mode kontrole u widget modu */
+body.widget-mode #ttsBtn,
+body.widget-mode #wakeBtn,
+body.widget-mode #clearBtn,
+body.widget-mode #widgetToggle,
+body.widget-mode .status-dot,
+body.widget-mode .status-label {
+  display: none !important;
+}
+
+/* Widget-only kontrole (skrivene u normalnom modu) */
+.btn-widget-ctrl {
+  display: none;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #8c95a8;
+  border-radius: 8px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+}
+
+.btn-widget-ctrl:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8ecf4;
+}
+
+.btn-widget-ctrl svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Prikazuj widget kontrole samo u widget modu */
+body.widget-mode .btn-widget-ctrl {
+  display: flex;
+}
+
+
+/* ═══════════════════════════════════════════
+   WIDGET DONJI PANEL — kompaktniji, bez file-row i stats
+   ═══════════════════════════════════════════ */
+
+body.widget-mode .bottom {
+  padding: 10px 12px;
+  gap: 8px;
+}
+
+body.widget-mode .input-wrap input {
+  padding: 10px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+body.widget-mode .btn-accent {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+body.widget-mode .btn-mic {
+  width: 40px;
+}
+
+body.widget-mode .file-row,
+body.widget-mode .stats-bar {
+  display: none;
+}
+
+
+/* ═══════════════════════════════════════════
+   WIDGET CHAT OBLAST — kompaktniji welcome i poruke
+   ═══════════════════════════════════════════ */
+
+body.widget-mode #chat {
+  padding: 14px;
+}
+
+body.widget-mode .welcome {
+  padding: 28px 14px 16px;
+  gap: 12px;
+}
+
+body.widget-mode .welcome-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+}
+
+body.widget-mode .welcome-icon::before {
+  border-radius: 17px;
+}
+
+body.widget-mode .welcome-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+body.widget-mode .welcome h2 {
+  font-size: 17px;
+}
+
+body.widget-mode .welcome p {
+  font-size: 12px;
+  max-width: 320px;
+}
+
+body.widget-mode .feature-grid {
+  display: none;
+}
+
+body.widget-mode .msg {
+  max-width: 90%;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+body.widget-mode .msg-label {
+  font-size: 10px;
+}
+
+body.widget-mode .msg pre {
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+body.widget-mode .msg img {
+  border-radius: 10px;
+}
+
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE — sakrij widget toggle na mobilnom
+   ═══════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  #widgetToggle {
+    display: none !important;
+  }
+}
