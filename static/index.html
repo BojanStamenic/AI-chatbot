@@ -766,6 +766,10 @@
       <div class="header-right">
         <div class="status-dot"></div>
         <span class="status-label">Online</span>
+        <button class="btn-wake" id="ttsBtn" title="Enable voice replies">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+          Voice
+        </button>
         <button class="btn-wake" id="wakeBtn" title='Say "Hey JARVIS" to activate'>
           <span class="wake-dot"></span>
           Hey JARVIS
@@ -1230,6 +1234,7 @@ async function sendMessage() {
       addMsg(data.error, "error", false, false);
     } else {
       addMsg(data.reply, "bot", true, false);
+      if (ttsEnabled) speak(data.reply);
     }
     // refresh sidebar to pick up auto-title
     loadChatList();
@@ -1313,6 +1318,16 @@ let wakeRecognition   = null;
 let commandRecognition = null;
 let wakeWordEnabled   = false;
 let commandActive     = false;
+let isSpeaking        = false;
+let ttsEnabled        = false;
+
+const ttsBtn = document.getElementById("ttsBtn");
+ttsBtn.addEventListener("click", function() {
+  ttsEnabled = !ttsEnabled;
+  ttsBtn.classList.toggle("active", ttsEnabled);
+  ttsBtn.title = ttsEnabled ? "Voice replies on (click to disable)" : "Enable voice replies";
+  if (!ttsEnabled) window.speechSynthesis && speechSynthesis.cancel();
+});
 
 wakeBtn.addEventListener("click", toggleWakeWord);
 
@@ -1348,6 +1363,7 @@ function startWakeListen() {
   wakeRecognition.lang           = "en-US";
 
   wakeRecognition.onresult = function(e) {
+    if (isSpeaking) return;
     for (var i = e.resultIndex; i < e.results.length; i++) {
       var t = e.results[i][0].transcript.toLowerCase();
       if (WAKE_PHRASES.some(function(p) { return t.includes(p); })) {
@@ -1425,6 +1441,50 @@ function onWakeWordDetected() {
   };
 
   try { commandRecognition.start(); } catch(_) {}
+}
+
+/* ── text-to-speech ───────────────────────────── */
+
+function stripMarkdown(text) {
+  return text
+    .replace(/```[\s\S]*?```/g, "code block.")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/#{1,6}\s/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\n{2,}/g, ". ")
+    .replace(/\n/g, " ");
+}
+
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+
+  const clean = stripMarkdown(text).trim();
+  if (!clean) return;
+
+  const utter = new SpeechSynthesisUtterance(clean);
+  utter.lang  = "en-US";
+  utter.rate  = 1.05;
+  utter.pitch = 0.88; // slightly lower — more JARVIS-like
+
+  // pause wake mic while speaking to avoid feedback
+  isSpeaking = true;
+  try { wakeRecognition && wakeRecognition.abort(); } catch(_) {}
+
+  function afterSpeech() {
+    isSpeaking = false;
+    if (wakeWordEnabled && !commandActive) {
+      setTimeout(function() {
+        try { wakeRecognition.start(); } catch(_) {}
+      }, 400);
+    }
+  }
+  utter.onend   = afterSpeech;
+  utter.onerror = afterSpeech;
+
+  speechSynthesis.speak(utter);
 }
 
 fileInput.addEventListener("keydown", function(e) {
