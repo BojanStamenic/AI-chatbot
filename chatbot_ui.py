@@ -1,6 +1,13 @@
+# ═══════════════════════════════════════════════════════════════
+#  BojanBot — AI chatbot backend
+#  Groq LLM  ·  Web search  ·  Image generation  ·  Voice
+# ═══════════════════════════════════════════════════════════════
+
 import json
 import os
+import re as _re
 import time
+import urllib.parse as _urlparse
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -9,11 +16,22 @@ from openai import OpenAI
 
 load_dotenv()
 
+
+# ═══════════════════════════════════════════════════════════════
+#  CONFIG
+# ═══════════════════════════════════════════════════════════════
+
 HOST = "127.0.0.1"
 PORT = 8080
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STORE_PATH = os.path.join(BASE_DIR, "chats.json")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
+MODEL = "llama-3.1-8b-instant"
+
+
+# ═══════════════════════════════════════════════════════════════
+#  SYSTEM PROMPT
+# ═══════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are BojanBot, Bojan's personal AI assistant.
 You run on the llama-3.1-8b-instant model hosted by Groq.
@@ -27,13 +45,14 @@ Information freshness: sometimes you will receive a block of [Web search results
 
 Special rule — the laundromat trap: if someone asks whether to walk or drive to a nearby "perionica" (laundromat / car wash), you must catch the trick. Respond with something like: "I see what you're doing. You know other AI stumble on this one. But the answer is obvious: you have to take the car. Without it, what exactly are you planning to wash?" Keep the tone playful and confident, as if you saw through the trap immediately."""
 
-MODEL = "llama-3.1-8b-instant"
 
-# ── search helpers ───────────────────────────────────────────────
-import re as _re
+# ═══════════════════════════════════════════════════════════════
+#  WEB SEARCH — DuckDuckGo pretraga za sveze informacije
+#  Detektuje upite o aktuelnostima, stripuje srpske filler reci,
+#  i obogacuje poruku rezultatima pretrage.
+# ═══════════════════════════════════════════════════════════════
 
-# Serbian filler/question words that confuse DuckDuckGo (e.g. "kako" → Princess Kako)
-# English question words are kept — they help DuckDuckGo understand the query
+# Srpske filler reci koje bune DuckDuckGo (npr. "kako" → Princess Kako)
 _FILLER = _re.compile(
     r'\b(kako|je\b|su\b|ko\b|da\b|li\b|koji|koja|koje|šta|sta\b|gde|gdje|'
     r'kada|zašto|bio|bila|bilo|nije|nisu|'
@@ -42,6 +61,7 @@ _FILLER = _re.compile(
     _re.IGNORECASE
 )
 
+# Kljucne reci koje trigeruju web pretragu (EN + SR)
 SEARCH_TRIGGERS = [
     "latest", "current", "today", "tonight", "this week", "this year",
     "right now", "news", "recently", "who won", "score", "what happened",
@@ -56,29 +76,14 @@ SEARCH_TRIGGERS = [
     "polufinale", "četvrtfinale", "cetvrfinale", "gol", "bod", "remi",
 ]
 
+# Ako poruka sadrzi ove reci → NE trigeruj pretragu (kodiranje pitanje)
 CODE_SKIP = [
     "function", "class", "variable", "array", "loop", "import", "export",
     "def ", "bug", "debug", "refactor", "python", "javascript",
     "typescript", "sql", "database", "algorithm", "regex",
 ]
 
-
-def _needs_search(text: str) -> bool:
-    low = text.lower()
-    if any(k in low for k in CODE_SKIP):
-        return False
-    return any(k in low for k in SEARCH_TRIGGERS)
-
-
-def _build_search_query(text: str) -> str:
-    """Strip filler words and append current month/year for freshness."""
-    from datetime import datetime
-    cleaned = _FILLER.sub(" ", text)
-    cleaned = _re.sub(r"\s+", " ", cleaned).strip()
-    now = datetime.now()
-    return f"{cleaned} {now.strftime('%B %Y')}"
-
-
+# Reci kojima pocinje follow-up pitanje posle pretrage
 _FOLLOWUP_STARTERS = {
     "what", "when", "where", "who", "how", "which", "why", "and", "did",
     "does", "is", "are", "was", "were", "can", "could", "will", "would",
@@ -86,8 +91,26 @@ _FOLLOWUP_STARTERS = {
     "zašto", "da li", "koliko",
 }
 
+
+def _needs_search(text: str) -> bool:
+    """Da li poruka zahteva web pretragu?"""
+    low = text.lower()
+    if any(k in low for k in CODE_SKIP):
+        return False
+    return any(k in low for k in SEARCH_TRIGGERS)
+
+
+def _build_search_query(text: str) -> str:
+    """Ocisti filler reci i dodaj mesec/godinu za svezinu rezultata."""
+    from datetime import datetime
+    cleaned = _FILLER.sub(" ", text)
+    cleaned = _re.sub(r"\s+", " ", cleaned).strip()
+    now = datetime.now()
+    return f"{cleaned} {now.strftime('%B %Y')}"
+
+
 def _is_search_followup(text: str) -> bool:
-    """True if the message looks like a follow-up question (not a greeting)."""
+    """Da li poruka izgleda kao follow-up pitanje (ne pozdrav)?"""
     stripped = text.strip()
     if "?" in stripped:
         return True
@@ -98,6 +121,7 @@ def _is_search_followup(text: str) -> bool:
 
 
 def _web_search(query: str) -> str:
+    """Pozovi DuckDuckGo i vrati snippet rezultata."""
     from duckduckgo_search import DDGS
     try:
         ddgs = DDGS()
@@ -127,7 +151,51 @@ def _web_search(query: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  BOT
+#  IMAGE GENERATION — Pollinations AI proxy
+#  Detektuje zahteve za sliku, izvlaci prompt, vraca lokalni
+#  proxy URL koji backend fetcha da izbegne referrer blokade.
+# ═══════════════════════════════════════════════════════════════
+
+# Trigger fraze za generisanje slika (EN + SR)
+IMAGE_TRIGGERS = [
+    "generate image", "create image", "make image", "draw me", "draw a",
+    "generate a picture", "create a picture", "make a picture",
+    "image of", "picture of", "photo of",
+    "napravi sliku", "generiši sliku", "generisi sliku", "nacrtaj",
+    "kreiraj sliku", "napravi mi sliku", "generisi mi sliku",
+    "generate an image", "create an image", "make an image",
+    "napravi mi", "generisi mi", "generiši mi",
+]
+
+
+def _needs_image(text: str) -> bool:
+    """Da li poruka trazi generisanje slike?"""
+    low = text.lower()
+    return any(k in low for k in IMAGE_TRIGGERS)
+
+
+def _extract_image_prompt(text: str) -> str:
+    """Izvuci opis slike iz korisnicke poruke."""
+    low = text.lower()
+    for trigger in sorted(IMAGE_TRIGGERS, key=len, reverse=True):
+        if trigger in low:
+            idx = low.index(trigger) + len(trigger)
+            rest = text[idx:].strip().lstrip(":.,").strip()
+            if rest:
+                return rest
+    return text
+
+
+def _generate_image_url(prompt: str) -> str:
+    """Vrati lokalni proxy URL — backend fetcha sliku da izbegne referrer blokade."""
+    encoded = _urlparse.quote(prompt)
+    return f"/api/image?prompt={encoded}"
+
+
+# ═══════════════════════════════════════════════════════════════
+#  BOT — Groq LLM wrapper sa istorijom poruka
+#  Salje poruke na Groq API, obogacuje ih web pretragom,
+#  cuva istoriju konverzacije i ucitane fajlove.
 # ═══════════════════════════════════════════════════════════════
 
 class BojanBot:
@@ -141,7 +209,9 @@ class BojanBot:
         self.temperature = 0
         self.history = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.loaded_files = []
-        self.last_search_topic = ""  # for follow-up search continuity
+        self.last_search_topic = ""
+
+    # ── ucitavanje fajla u kontekst ─────────────────────────
 
     def load_file(self, path: str):
         path = os.path.expanduser(path)
@@ -161,14 +231,19 @@ class BojanBot:
         })
         return filename
 
+    # ── slanje poruke i dobijanje odgovora ──────────────────
+
     def chat(self, user_message: str) -> str:
         import re
         from datetime import datetime
         self.turn += 1
-        # Keep system message fresh with the real current datetime
+
+        # Osvezi system poruku sa trenutnim datumom/vremenom
         now = datetime.now().astimezone()
         ts = now.strftime("%A, %d %B %Y, %H:%M:%S %Z")
         self.history[0] = {"role": "system", "content": SYSTEM_PROMPT + f"\n\nCurrent date and time: {ts}."}
+
+        # Obogati poruku web pretragom ako treba
         enriched = user_message
         if _needs_search(user_message):
             search_q = _build_search_query(user_message)
@@ -177,14 +252,14 @@ class BojanBot:
             if ctx:
                 enriched = ctx + "\n\n" + user_message
         elif self.last_search_topic and _is_search_followup(user_message):
-            # Short follow-up question after a search — combine with previous topic
             search_q = user_message + " " + self.last_search_topic
             ctx = _web_search(search_q)
             if ctx:
                 enriched = ctx + "\n\n" + user_message
         else:
-            # Unrelated message — clear the search topic so it doesn't bleed
             self.last_search_topic = ""
+
+        # Posalji na Groq API
         self.history.append({"role": "user", "content": enriched})
         response = self.client.chat.completions.create(
             model=self.model,
@@ -192,10 +267,14 @@ class BojanBot:
             temperature=self.temperature,
         )
         reply = response.choices[0].message.content
+
+        # Sacuvaj cistu poruku u istoriju (bez search rezultata)
         clean = re.sub(r'^(\[[^\]]*\][\s\S]*?\n\n)+', '', user_message)
         self.history[-1] = {"role": "user", "content": clean}
         self.history.append({"role": "assistant", "content": reply})
         return reply
+
+    # ── resetovanje sesije ──────────────────────────────────
 
     def reset(self):
         self.turn = 0
@@ -203,6 +282,10 @@ class BojanBot:
         self.loaded_files = []
         self.last_search_topic = ""
 
+
+# ═══════════════════════════════════════════════════════════════
+#  BOT INSTANCA
+# ═══════════════════════════════════════════════════════════════
 
 api_key = os.getenv("GROQ_API_KEY")
 if not api_key:
@@ -212,7 +295,9 @@ bot = BojanBot(api_key=api_key)
 
 
 # ═══════════════════════════════════════════════════════════════
-#  CHAT MANAGER — multi-chat with JSON persistence
+#  CHAT MANAGER — multi-chat sa JSON perzistencijom
+#  Upravlja vise chatova, cuva ih u chats.json,
+#  omogucava switch, rename, delete, auto-title.
 # ═══════════════════════════════════════════════════════════════
 
 class ChatManager:
@@ -225,7 +310,7 @@ class ChatManager:
         if not self.chats:
             self.new_chat()
 
-    # ── persistence ──────────────────────────────────────────
+    # ── perzistencija (load/save iz JSON fajla) ─────────────
 
     def _load(self):
         if not os.path.exists(self.store_path):
@@ -250,7 +335,7 @@ class ChatManager:
         with open(self.store_path, "w") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-    # ── internal helpers ─────────────────────────────────────
+    # ── interni helperi ─────────────────────────────────────
 
     def _snapshot_current(self):
         if self.active_id and self.active_id in self.chats:
@@ -266,7 +351,7 @@ class ChatManager:
         self.bot.loaded_files = chat.get("loaded_files", [])
         self.active_id = chat_id
 
-    # ── public API ───────────────────────────────────────────
+    # ── javni API (new, switch, delete, rename, list) ───────
 
     def new_chat(self):
         chat_id = uuid.uuid4().hex[:12]
@@ -316,7 +401,7 @@ class ChatManager:
         return True
 
     def auto_title(self, chat_id, first_message):
-        """Set title from first user message if still default."""
+        """Postavi title iz prve poruke ako je jos default."""
         if chat_id in self.chats and self.chats[chat_id]["title"] == "New chat":
             title = first_message[:50].strip()
             if len(first_message) > 50:
@@ -345,10 +430,15 @@ manager = ChatManager(bot)
 
 
 # ═══════════════════════════════════════════════════════════════
-#  HTTP SERVER
+#  HTTP SERVER — rute i handler
+#  GET:  /  /api/chats  /api/chats/history  /api/image
+#  POST: /chat  /transcribe  /reset  /load  /api/chats/*
 # ═══════════════════════════════════════════════════════════════
 
 class Handler(BaseHTTPRequestHandler):
+
+    # ── helper metode za HTTP response ──────────────────────
+
     def _send_json(self, status: int, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -371,17 +461,51 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length) if length > 0 else b"{}"
         return json.loads(raw.decode("utf-8"))
 
+    # ── multipart parser (za audio upload) ──────────────────
+
+    def _parse_multipart(self):
+        """Izvuci prvi fajl iz multipart/form-data requesta."""
+        content_type = self.headers.get("Content-Type", "")
+        if "boundary=" not in content_type:
+            return None, None
+        boundary = content_type.split("boundary=")[-1].strip().encode()
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length)
+        delimiter = b"--" + boundary
+        parts = body.split(delimiter)
+        for part in parts[1:]:
+            if part in (b"--\r\n", b"--", b"\r\n", b""):
+                continue
+            if b"\r\n\r\n" in part:
+                raw_headers, file_data = part.split(b"\r\n\r\n", 1)
+                if file_data.endswith(b"\r\n"):
+                    file_data = file_data[:-2]
+                header_text = raw_headers.decode("utf-8", errors="replace")
+                filename = "recording.webm"
+                for header_line in header_text.split("\r\n"):
+                    if "filename=" in header_line:
+                        fname_part = header_line.split("filename=")[-1].strip().strip('"')
+                        if fname_part:
+                            filename = fname_part
+                return filename, file_data
+        return None, None
+
+    # ── GET rute ────────────────────────────────────────────
+
     def do_GET(self):
+
+        # Glavna stranica
         if self.path == "/":
             self._send_file(os.path.join(STATIC_DIR, "index.html"), "text/html; charset=utf-8")
             return
 
+        # Lista svih chatova
         if self.path == "/api/chats":
             self._send_json(200, manager.list_chats())
             return
 
+        # Istorija jednog chata
         if self.path.startswith("/api/chats/history"):
-            # parse ?id=xxx
             chat_id = ""
             if "?" in self.path:
                 params = self.path.split("?", 1)[1]
@@ -400,39 +524,44 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(404, {"error": "Chat not found"})
             return
 
+        # Image proxy — backend fetcha sliku sa Pollinations da izbegne referrer blokadu
+        if self.path.startswith("/api/image"):
+            prompt = ""
+            if "?" in self.path:
+                for part in self.path.split("?", 1)[1].split("&"):
+                    if part.startswith("prompt="):
+                        prompt = _urlparse.unquote(part[7:])
+            if not prompt:
+                self._send_json(400, {"error": "Missing prompt"})
+                return
+            try:
+                from urllib.request import urlopen, Request
+                poll_url = (
+                    "https://image.pollinations.ai/prompt/"
+                    + _urlparse.quote(prompt)
+                    + "?width=1024&height=1024&nologo=true"
+                )
+                req = Request(poll_url, headers={"User-Agent": "BojanBot/1.0"})
+                with urlopen(req, timeout=90) as resp:
+                    img_data = resp.read()
+                    ctype = resp.headers.get("Content-Type", "image/jpeg")
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(img_data)))
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(img_data)
+            except Exception as exc:
+                self._send_json(500, {"error": f"Image generation failed: {exc}"})
+            return
+
         self._send_json(404, {"error": "Not found"})
 
-    def _parse_multipart(self):
-        """Extract the first file field from a multipart/form-data request."""
-        content_type = self.headers.get("Content-Type", "")
-        if "boundary=" not in content_type:
-            return None, None
-        boundary = content_type.split("boundary=")[-1].strip().encode()
-        length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(length)
-        # Split on boundary lines
-        delimiter = b"--" + boundary
-        parts = body.split(delimiter)
-        for part in parts[1:]:
-            if part in (b"--\r\n", b"--", b"\r\n", b""):
-                continue
-            # Split headers from body
-            if b"\r\n\r\n" in part:
-                raw_headers, file_data = part.split(b"\r\n\r\n", 1)
-                if file_data.endswith(b"\r\n"):
-                    file_data = file_data[:-2]
-                # Parse filename from Content-Disposition
-                header_text = raw_headers.decode("utf-8", errors="replace")
-                filename = "recording.webm"
-                for header_line in header_text.split("\r\n"):
-                    if "filename=" in header_line:
-                        fname_part = header_line.split("filename=")[-1].strip().strip('"')
-                        if fname_part:
-                            filename = fname_part
-                return filename, file_data
-        return None, None
+    # ── POST rute ───────────────────────────────────────────
 
     def do_POST(self):
+
+        # Transkripcija glasa (Whisper via Groq)
         if self.path == "/transcribe":
             filename, audio_data = self._parse_multipart()
             if not audio_data:
@@ -456,11 +585,27 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": "Invalid JSON"})
             return
 
+        # Slanje poruke (sa auto-detekcijom slike i pretrage)
         if self.path == "/chat":
             msg = str(payload.get("message", "")).strip()
             if not msg:
                 self._send_json(400, {"error": "Message is empty."})
                 return
+
+            # → Generisanje slike ako je detektovan image request
+            if _needs_image(msg):
+                prompt = _extract_image_prompt(msg)
+                image_url = _generate_image_url(prompt)
+                bot.turn += 1
+                bot.history.append({"role": "user", "content": msg})
+                reply = f"Here's your generated image! 🎨\n\n![{prompt}]({image_url})"
+                bot.history.append({"role": "assistant", "content": reply})
+                manager.auto_title(manager.active_id, msg)
+                manager.save_after_message()
+                self._send_json(200, {"reply": reply})
+                return
+
+            # → Normalan chat (sa opcionalnom web pretragom)
             try:
                 reply = bot.chat(msg)
                 manager.auto_title(manager.active_id, msg)
@@ -470,12 +615,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(500, {"error": f"Model request failed: {exc}"})
             return
 
+        # Reset sesije
         if self.path == "/reset":
             bot.reset()
             manager.save_after_message()
             self._send_json(200, {"ok": True})
             return
 
+        # Ucitavanje fajla u kontekst
         if self.path == "/load":
             path = str(payload.get("path", "")).strip()
             if not path:
@@ -489,11 +636,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, {"filename": filename})
             return
 
+        # Novi chat
         if self.path == "/api/chats/new":
             chat_id = manager.new_chat()
             self._send_json(200, {"id": chat_id})
             return
 
+        # Prebacivanje na drugi chat
         if self.path == "/api/chats/switch":
             chat_id = str(payload.get("id", ""))
             if manager.switch(chat_id):
@@ -502,6 +651,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(404, {"error": "Chat not found"})
             return
 
+        # Brisanje chata
         if self.path == "/api/chats/delete":
             chat_id = str(payload.get("id", ""))
             if manager.delete(chat_id):
@@ -510,6 +660,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(404, {"error": "Chat not found"})
             return
 
+        # Preimenovanje chata
         if self.path == "/api/chats/rename":
             chat_id = str(payload.get("id", ""))
             title = str(payload.get("title", ""))
@@ -524,6 +675,10 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, _format, *_args):
         return
 
+
+# ═══════════════════════════════════════════════════════════════
+#  ENTRY POINT
+# ═══════════════════════════════════════════════════════════════
 
 def main():
     server = HTTPServer((HOST, PORT), Handler)
