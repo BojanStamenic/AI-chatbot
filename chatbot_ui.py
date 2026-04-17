@@ -18,9 +18,112 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 SYSTEM_PROMPT = """You are BojanBot, Bojan's personal AI assistant.
 You run on the llama-3.1-8b-instant model hosted by Groq.
 You specialise in coding and tech questions but can handle anything.
-You are direct, no-fluff, and occasionally witty. Keep answers concise."""
+You are direct, no-fluff, and occasionally witty. Keep answers concise.
+Use emojis naturally throughout your responses to keep the conversation lively — but don't overdo it. One or two per message is enough.
+
+Context awareness: always track the full conversation history, not just the last message. If the user refers to "that match", "what you said", "the first message", or anything similar — look back through the entire conversation and answer based on what was actually said. Never claim you didn't mention something if you did earlier in the chat.
+
+Information freshness: sometimes you will receive a block of [Web search results] at the top of a message — treat those as real, live data fetched from the web and use them as your primary source. If no search results are provided and the user asks about recent events, be honest that your training data may be outdated and suggest they verify on a live source. Never invent results or scores.
+
+Special rule — the laundromat trap: if someone asks whether to walk or drive to a nearby "perionica" (laundromat / car wash), you must catch the trick. Respond with something like: "I see what you're doing. You know other AI stumble on this one. But the answer is obvious: you have to take the car. Without it, what exactly are you planning to wash?" Keep the tone playful and confident, as if you saw through the trap immediately."""
 
 MODEL = "llama-3.1-8b-instant"
+
+# ── search helpers ───────────────────────────────────────────────
+import re as _re
+
+# Serbian filler/question words that confuse DuckDuckGo (e.g. "kako" → Princess Kako)
+# English question words are kept — they help DuckDuckGo understand the query
+_FILLER = _re.compile(
+    r'\b(kako|je\b|su\b|ko\b|da\b|li\b|koji|koja|koje|šta|sta\b|gde|gdje|'
+    r'kada|zašto|bio|bila|bilo|nije|nisu|'
+    r'u\b|na\b|za\b|sa\b|od\b|do\b|po\b|iz\b|i\b|a\b|ili|'
+    r'taj|ta\b|to\b|ovo|ono)\b',
+    _re.IGNORECASE
+)
+
+SEARCH_TRIGGERS = [
+    "latest", "current", "today", "tonight", "this week", "this year",
+    "right now", "news", "recently", "who won", "score", "what happened",
+    "result", "match", "game", "league", "champions", "tournament",
+    "transfer", "standings", "playoff", "price of",
+    "when did", "when was", "when were", "when is",
+    "koji datum", "kada je", "kada su",
+    "najnovije", "danas", "vesti", "trenutno", "ove godine", "ove nedelje",
+    "liga", "utakmica", "rezultat", "prošao", "prosao", "pobedio",
+    "izgubio", "kako je", "kako su", "ko je", "koji je", "koja je",
+    "šampionat", "sampionat", "kup", "turnir", "tabela", "finale",
+    "polufinale", "četvrtfinale", "cetvrfinale", "gol", "bod", "remi",
+]
+
+CODE_SKIP = [
+    "function", "class", "variable", "array", "loop", "import", "export",
+    "def ", "bug", "debug", "refactor", "python", "javascript",
+    "typescript", "sql", "database", "algorithm", "regex",
+]
+
+
+def _needs_search(text: str) -> bool:
+    low = text.lower()
+    if any(k in low for k in CODE_SKIP):
+        return False
+    return any(k in low for k in SEARCH_TRIGGERS)
+
+
+def _build_search_query(text: str) -> str:
+    """Strip filler words and append current month/year for freshness."""
+    from datetime import datetime
+    cleaned = _FILLER.sub(" ", text)
+    cleaned = _re.sub(r"\s+", " ", cleaned).strip()
+    now = datetime.now()
+    return f"{cleaned} {now.strftime('%B %Y')}"
+
+
+_FOLLOWUP_STARTERS = {
+    "what", "when", "where", "who", "how", "which", "why", "and", "did",
+    "does", "is", "are", "was", "were", "can", "could", "will", "would",
+    "šta", "kada", "gde", "gdje", "ko", "koji", "koja", "kako", "i", "a",
+    "zašto", "da li", "koliko",
+}
+
+def _is_search_followup(text: str) -> bool:
+    """True if the message looks like a follow-up question (not a greeting)."""
+    stripped = text.strip()
+    if "?" in stripped:
+        return True
+    if len(stripped.split()) > 6:
+        return False
+    first = stripped.split()[0].lower().rstrip("?!.,") if stripped else ""
+    return first in _FOLLOWUP_STARTERS
+
+
+def _web_search(query: str) -> str:
+    from duckduckgo_search import DDGS
+    try:
+        ddgs = DDGS()
+        hits = []
+        for tl in ("w", "m", None):
+            try:
+                kw = {"max_results": 5}
+                if tl:
+                    kw["timelimit"] = tl
+                hits = list(ddgs.text(query, **kw))
+            except Exception as e:
+                print(f"[Web search] timelimit={tl} failed: {e}")
+                continue
+            if hits:
+                break
+        if not hits:
+            print(f"[Web search] No results found for: {query}")
+            return ""
+        snippets = "\n\n".join(
+            f"{i+1}. {h['title']}\n{h['body']}" for i, h in enumerate(hits)
+        )
+        print(f"[Web search] Found {len(hits)} results for: {query}")
+        return f"[Web search results]\n{snippets}"
+    except Exception as e:
+        print(f"[Web search] Fatal error: {e}")
+        return ""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -35,9 +138,10 @@ class BojanBot:
         )
         self.model = model
         self.turn = 0
-        self.temperature = 0.2
+        self.temperature = 0
         self.history = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.loaded_files = []
+        self.last_search_topic = ""  # for follow-up search continuity
 
     def load_file(self, path: str):
         path = os.path.expanduser(path)
@@ -58,14 +162,38 @@ class BojanBot:
         return filename
 
     def chat(self, user_message: str) -> str:
+        import re
+        from datetime import datetime
         self.turn += 1
-        self.history.append({"role": "user", "content": user_message})
+        # Keep system message fresh with the real current datetime
+        now = datetime.now().astimezone()
+        ts = now.strftime("%A, %d %B %Y, %H:%M:%S %Z")
+        self.history[0] = {"role": "system", "content": SYSTEM_PROMPT + f"\n\nCurrent date and time: {ts}."}
+        enriched = user_message
+        if _needs_search(user_message):
+            search_q = _build_search_query(user_message)
+            self.last_search_topic = search_q
+            ctx = _web_search(search_q)
+            if ctx:
+                enriched = ctx + "\n\n" + user_message
+        elif self.last_search_topic and _is_search_followup(user_message):
+            # Short follow-up question after a search — combine with previous topic
+            search_q = user_message + " " + self.last_search_topic
+            ctx = _web_search(search_q)
+            if ctx:
+                enriched = ctx + "\n\n" + user_message
+        else:
+            # Unrelated message — clear the search topic so it doesn't bleed
+            self.last_search_topic = ""
+        self.history.append({"role": "user", "content": enriched})
         response = self.client.chat.completions.create(
             model=self.model,
             messages=self.history,
             temperature=self.temperature,
         )
         reply = response.choices[0].message.content
+        clean = re.sub(r'^(\[[^\]]*\][\s\S]*?\n\n)+', '', user_message)
+        self.history[-1] = {"role": "user", "content": clean}
         self.history.append({"role": "assistant", "content": reply})
         return reply
 
@@ -73,6 +201,7 @@ class BojanBot:
         self.turn = 0
         self.history = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.loaded_files = []
+        self.last_search_topic = ""
 
 
 api_key = os.getenv("GROQ_API_KEY")

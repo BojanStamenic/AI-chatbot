@@ -277,11 +277,39 @@
     .chat-item-btn svg { width: 14px; height: 14px; }
 
     .sidebar-footer {
-      padding: 12px 16px;
+      padding: 14px 16px;
       border-top: 1px solid var(--border);
-      font-size: 11px;
-      color: var(--text-muted);
       text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .footer-clock {
+      font-family: var(--font-mono);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 2px;
+      line-height: 1;
+    }
+
+    .footer-weather {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .footer-weather strong {
+      color: var(--accent);
+    }
+
+    .footer-brand {
+      font-size: 10px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      margin-top: 2px;
     }
 
     /* ═══════════════════════════════════════════
@@ -750,7 +778,9 @@
     <div class="chat-list" id="chatList"></div>
 
     <div class="sidebar-footer">
-      BojanBot &mdash; Groq &middot; Llama 3.1
+      <div id="clockEl" class="footer-clock">--:--:--</div>
+      <div id="weatherEl" class="footer-weather">Fetching weather…</div>
+      <div class="footer-brand">BojanBot &mdash; Groq &middot; Llama 3.1</div>
     </div>
   </aside>
 
@@ -1228,7 +1258,8 @@ async function sendMessage() {
   showTyping();
 
   try {
-    const data = await postJSON("/chat", { message: text });
+    const enriched = await enrichWithWeather(text);
+    const data = await postJSON("/chat", { message: enriched });
     hideTyping();
     if (data.error) {
       addMsg(data.error, "error", false, false);
@@ -1491,6 +1522,186 @@ fileInput.addEventListener("keydown", function(e) {
   if (e.key === "Enter") { e.preventDefault(); loadFile(); }
 });
 
+/* ── weather enrichment for chat ─────────────── */
+
+let localWeather = null;
+
+const WEATHER_KEYS = [
+  "weather", "temperature", "forecast", "rain", "sunny", "cloudy",
+  "snow", "wind", "humid", "vreme", "temperatura", "prognoza", "kiša", "sneg"
+];
+
+function looksLikeWeatherQuery(text) {
+  const low = text.toLowerCase();
+  return WEATHER_KEYS.some(function(k) { return low.includes(k); });
+}
+
+function extractCityFromQuery(text) {
+  const m = text.match(
+    /\b(?:in|for|at|u|na|za|about)\s+([A-Za-zÀ-ÿčćđšžČĆĐŠŽ][A-Za-zÀ-ÿčćđšžČĆĐŠŽ\s]{1,40}?)(?:\s*[?!.]?\s*$|\s+(?:right now|today|tonight|tomorrow|now|sada|danas|sutra))/i
+  );
+  return m ? m[1].trim() : null;
+}
+
+async function fetchWeatherForCity(cityName) {
+  const geoRes = await fetch(
+    "https://geocoding-api.open-meteo.com/v1/search?name=" +
+    encodeURIComponent(cityName) + "&count=1&language=en&format=json"
+  );
+  const geo = await geoRes.json();
+  if (!geo.results || !geo.results.length) return null;
+
+  const place = geo.results[0];
+  const label = [place.name, place.admin1, place.country].filter(Boolean).join(", ");
+
+  const wRes = await fetch(
+    "https://api.open-meteo.com/v1/forecast" +
+    "?latitude=" + place.latitude +
+    "&longitude=" + place.longitude +
+    "&current=temperature_2m,apparent_temperature,weather_code,relative_humidity_2m,wind_speed_10m" +
+    "&temperature_unit=celsius&timezone=auto"
+  );
+  const w    = await wRes.json();
+  const c    = w.current;
+  const [, desc] = WMO[c.weather_code] || ["", "Unknown"];
+
+  return {
+    label,
+    temp:     Math.round(c.temperature_2m),
+    feels:    Math.round(c.apparent_temperature),
+    humidity: c.relative_humidity_2m,
+    wind:     Math.round(c.wind_speed_10m),
+    desc
+  };
+}
+
+async function enrichWithWeather(text) {
+  if (!looksLikeWeatherQuery(text)) return text;
+
+  const city = extractCityFromQuery(text);
+  let wd = null;
+
+  if (city) {
+    try { wd = await fetchWeatherForCity(city); } catch (_) {}
+  }
+  if (!wd && localWeather) {
+    wd = localWeather;
+  }
+  if (!wd) return text;
+
+  const ctx =
+    "[Real-time weather data for " + wd.label + ": " +
+    wd.temp + "°C, feels like " + wd.feels + "°C, " + wd.desc +
+    ", humidity " + wd.humidity + "%, wind " + wd.wind + " km/h]";
+
+  return ctx + "\n\n" + text;
+}
+
+/* ── clock ────────────────────────────────────── */
+
+const clockEl = document.getElementById("clockEl");
+
+function startClock() {
+  function tick() {
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString("en-GB", { hour12: false });
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* ── weather ──────────────────────────────────── */
+
+const WMO = {
+  0:  ["☀️",  "Clear"],
+  1:  ["🌤",  "Mostly clear"],
+  2:  ["⛅",  "Partly cloudy"],
+  3:  ["☁️",  "Overcast"],
+  45: ["🌫",  "Foggy"],
+  48: ["🌫",  "Icy fog"],
+  51: ["🌦",  "Light drizzle"],
+  53: ["🌦",  "Drizzle"],
+  55: ["🌧",  "Heavy drizzle"],
+  61: ["🌧",  "Light rain"],
+  63: ["🌧",  "Rain"],
+  65: ["🌧",  "Heavy rain"],
+  71: ["🌨",  "Light snow"],
+  73: ["🌨",  "Snow"],
+  75: ["❄️",  "Heavy snow"],
+  77: ["🌨",  "Snow grains"],
+  80: ["🌦",  "Showers"],
+  81: ["🌧",  "Rain showers"],
+  82: ["⛈",  "Heavy showers"],
+  85: ["🌨",  "Snow showers"],
+  86: ["❄️",  "Heavy snow showers"],
+  95: ["⛈",  "Thunderstorm"],
+  96: ["⛈",  "Thunderstorm + hail"],
+  99: ["⛈",  "Severe thunderstorm"],
+};
+
+const weatherEl = document.getElementById("weatherEl");
+
+async function fetchWeather() {
+  try {
+    // Try ipapi.co first (HTTPS, no key needed)
+    let lat, lon, city;
+    try {
+      const r = await fetch("https://ipapi.co/json/");
+      const d = await r.json();
+      if (d.latitude) {
+        lat  = d.latitude;
+        lon  = d.longitude;
+        city = d.city || d.region || "—";
+      }
+    } catch (_) {}
+
+    // Fallback: ip-api.com (HTTP only, works on local server)
+    if (!lat) {
+      const r = await fetch("http://ip-api.com/json");
+      const d = await r.json();
+      if (d.status === "success") {
+        lat  = d.lat;
+        lon  = d.lon;
+        city = d.city || d.regionName || "—";
+      }
+    }
+
+    if (!lat) throw new Error("Could not determine location");
+
+    const wRes = await fetch(
+      "https://api.open-meteo.com/v1/forecast" +
+      "?latitude=" + lat +
+      "&longitude=" + lon +
+      "&current=temperature_2m,apparent_temperature,weather_code,relative_humidity_2m,wind_speed_10m" +
+      "&temperature_unit=celsius&timezone=auto"
+    );
+    const w = await wRes.json();
+
+    const temp  = Math.round(w.current.temperature_2m);
+    const feels = Math.round(w.current.apparent_temperature);
+    const code  = w.current.weather_code;
+    const [icon, desc] = WMO[code] || ["🌡", "Unknown"];
+
+    // store for chat enrichment
+    localWeather = {
+      label:    city,
+      temp, feels, desc,
+      humidity: w.current.relative_humidity_2m,
+      wind:     Math.round(w.current.wind_speed_10m)
+    };
+
+    weatherEl.innerHTML =
+      icon + " <strong>" + temp + "°C</strong> · " + desc +
+      "<br>Feels " + feels + "°C · 📍 " + city;
+
+    // refresh every 10 minutes
+    setTimeout(fetchWeather, 10 * 60 * 1000);
+  } catch (err) {
+    weatherEl.textContent = "Weather unavailable";
+    console.warn("Weather fetch failed:", err);
+  }
+}
+
 /* ── init ─────────────────────────────────────── */
 
 (async function init() {
@@ -1506,6 +1717,8 @@ fileInput.addEventListener("keydown", function(e) {
       syncStats();
     }
   }
+  startClock();
+  fetchWeather();
   msgInput.focus();
 })();
 </script>
