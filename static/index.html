@@ -8,8 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <style>
+
     /* ═══════════════════════════════════════════
-       TOKENS
+       DESIGN TOKENS — boje, fontovi, radijusi, senke
        ═══════════════════════════════════════════ */
     :root {
       --bg-deep:       #06080d;
@@ -74,7 +75,7 @@
     }
 
     /* ═══════════════════════════════════════════
-       BG EFFECTS
+       POZADINSKI EFEKTI — gradijenti i grid overlay
        ═══════════════════════════════════════════ */
     body::before {
       content: '';
@@ -100,7 +101,7 @@
     }
 
     /* ═══════════════════════════════════════════
-       LAYOUT: SIDEBAR + MAIN
+       LAYOUT — sidebar + main flex container
        ═══════════════════════════════════════════ */
     .layout {
       display: flex;
@@ -111,7 +112,7 @@
     }
 
     /* ═══════════════════════════════════════════
-       SIDEBAR
+       SIDEBAR — chat lista, branding, sat, vreme
        ═══════════════════════════════════════════ */
     .sidebar {
       width: var(--sidebar-w);
@@ -183,6 +184,7 @@
       box-shadow: 0 0 20px rgba(239,127,26,0.1);
     }
 
+    /* sidebar chat lista */
     .chat-list {
       flex: 1;
       overflow-y: auto;
@@ -276,6 +278,7 @@
 
     .chat-item-btn svg { width: 14px; height: 14px; }
 
+    /* sidebar footer — sat i vreme */
     .sidebar-footer {
       padding: 14px 16px;
       border-top: 1px solid var(--border);
@@ -313,7 +316,7 @@
     }
 
     /* ═══════════════════════════════════════════
-       MAIN PANEL
+       MAIN PANEL — header + chat + bottom
        ═══════════════════════════════════════════ */
     .main {
       flex: 1;
@@ -324,7 +327,7 @@
       background: var(--bg-surface);
     }
 
-    /* header */
+    /* header sa statusom i kontrolama */
     .header {
       padding: 12px 24px;
       display: flex;
@@ -381,8 +384,10 @@
     .status-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
 
     /* ═══════════════════════════════════════════
-       BUTTONS
+       DUGMAD — osnovni, accent, ghost, wake, mic
        ═══════════════════════════════════════════ */
+
+    /* osnovni dugmic */
     .btn {
       border: 1px solid var(--border);
       background: var(--bg-elevated);
@@ -408,6 +413,7 @@
       transform: none !important; box-shadow: none !important;
     }
 
+    /* narandzasti accent dugmic (Send) */
     .btn-accent {
       background: linear-gradient(135deg, var(--accent), #d66908);
       border-color: transparent; color: #fff; font-weight: 700;
@@ -418,6 +424,7 @@
       color: #fff; box-shadow: 0 6px 24px var(--accent-glow);
     }
 
+    /* transparentni ghost dugmic (Reset) */
     .btn-ghost {
       background: transparent; border-color: transparent;
       color: var(--text-muted); padding: 8px 10px;
@@ -427,7 +434,7 @@
       border-color: transparent;
     }
 
-    /* wake word button */
+    /* wake word dugmic (Voice, Hey JARVIS) */
     .btn-wake {
       border: 1px solid var(--border);
       background: var(--bg-elevated);
@@ -464,7 +471,7 @@
       animation: micPulse 1.2s ease-in-out infinite;
     }
 
-    /* mic button */
+    /* mikrofon dugmic */
     .btn-mic {
       border: 1px solid var(--border);
       background: var(--bg-elevated);
@@ -495,7 +502,7 @@
     }
 
     /* ═══════════════════════════════════════════
-       CHAT AREA
+       CHAT OBLAST — poruke, welcome kartica
        ═══════════════════════════════════════════ */
     #chat {
       padding: 20px 24px;
@@ -510,7 +517,7 @@
     #chat::-webkit-scrollbar-track { background: transparent; }
     #chat::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
 
-    /* welcome */
+    /* welcome kartica pri novom chatu */
     .welcome {
       display: flex; flex-direction: column; align-items: center;
       text-align: center; padding: 48px 20px 30px; gap: 20px;
@@ -546,6 +553,7 @@
       max-width: 480px; line-height: 1.6;
     }
 
+    /* feature kartice na welcome ekranu */
     .feature-grid {
       display: grid; grid-template-columns: repeat(3, 1fr);
       gap: 12px; width: 100%; max-width: 640px;
@@ -566,7 +574,7 @@
     .feature-card small { font-size: 11px; color: var(--text-muted); line-height: 1.45; }
 
     /* ═══════════════════════════════════════════
-       MESSAGES
+       PORUKE — user, bot, system, error stilovi
        ═══════════════════════════════════════════ */
     .msg {
       max-width: 80%;
@@ -577,6 +585,7 @@
       word-wrap: break-word;
     }
 
+    /* kod blokovi u porukama */
     .msg pre {
       background: rgba(0,0,0,0.3); border: 1px solid var(--border);
       border-radius: var(--radius-sm); padding: 10px 12px;
@@ -589,6 +598,34 @@
     }
     .msg pre code { background: none; padding: 0; }
 
+    /* generisane slike u porukama */
+    .msg img {
+      max-width: 100%;
+      border-radius: var(--radius-md);
+      margin: 8px 0;
+      display: block;
+      cursor: pointer;
+      transition: transform 200ms ease;
+    }
+    .msg img:hover { transform: scale(1.02); }
+
+    .img-loading {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      margin: 8px 0;
+      animation: imgPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes imgPulse {
+      0%, 100% { opacity: 0.6; }
+      50%      { opacity: 1; }
+    }
+
+    /* animacije za poruke */
     @keyframes msgIn {
       from { opacity: 0; transform: translateY(8px) scale(0.98); }
       to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -598,6 +635,7 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
+    /* tipovi poruka */
     .msg.user {
       align-self: flex-end;
       background: var(--user-bg); border: 1px solid var(--user-border);
@@ -624,7 +662,7 @@
     .msg.user .msg-label { color: var(--accent); }
     .msg.bot  .msg-label { color: #6391ff; }
 
-    /* typing */
+    /* typing indikator (tri tackice) */
     .typing {
       align-self: flex-start; display: flex; gap: 5px;
       padding: 14px 18px; background: var(--bot-bg);
@@ -643,7 +681,7 @@
     }
 
     /* ═══════════════════════════════════════════
-       BOTTOM PANEL
+       DONJI PANEL — input, file load, statistika
        ═══════════════════════════════════════════ */
     .bottom {
       border-top: 1px solid var(--border);
@@ -652,20 +690,7 @@
       display: flex; flex-direction: column; gap: 10px;
     }
 
-    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-
-    .chip {
-      border: 1px solid var(--border); background: var(--bg-card);
-      color: var(--text-secondary); border-radius: var(--radius-full);
-      padding: 7px 14px; font-size: 12px; font-weight: 600;
-      font-family: var(--font-sans); cursor: pointer;
-      transition: all 160ms ease; white-space: nowrap;
-    }
-    .chip:hover {
-      border-color: var(--border-accent); color: var(--accent);
-      background: var(--accent-subtle); transform: translateY(-1px);
-    }
-
+    /* input red (poruka + mic + send) */
     .input-row { display: flex; gap: 10px; align-items: stretch; }
 
     .input-wrap { flex: 1; position: relative; }
@@ -681,9 +706,11 @@
       box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-sm);
     }
 
+    /* file load red */
     .file-row { display: flex; gap: 10px; align-items: stretch; }
     .file-row .input-wrap input { font-family: var(--font-mono); font-size: 13px; }
 
+    /* statistika bar */
     .stats-bar {
       display: flex; align-items: center;
       justify-content: space-between; gap: 12px; flex-wrap: wrap;
@@ -702,7 +729,7 @@
     }
 
     /* ═══════════════════════════════════════════
-       RENAME INLINE EDIT
+       RENAME — inline edit u sidebaru
        ═══════════════════════════════════════════ */
     .rename-input {
       background: var(--bg-input);
@@ -718,7 +745,7 @@
     }
 
     /* ═══════════════════════════════════════════
-       MOBILE OVERLAY
+       MOBILE OVERLAY — pozadina kad je sidebar otvoren
        ═══════════════════════════════════════════ */
     .sidebar-overlay {
       display: none;
@@ -728,7 +755,7 @@
     }
 
     /* ═══════════════════════════════════════════
-       RESPONSIVE
+       RESPONSIVE — mobilni layout
        ═══════════════════════════════════════════ */
     @media (max-width: 768px) {
       .sidebar {
@@ -760,7 +787,10 @@
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <div class="layout">
-  <!-- ═══ SIDEBAR ═══ -->
+
+  <!-- ═══════════════════════════════════════════
+       SIDEBAR — branding, new chat, chat lista, sat
+       ═══════════════════════════════════════════ -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-brand">
@@ -784,8 +814,12 @@
     </div>
   </aside>
 
-  <!-- ═══ MAIN ═══ -->
+  <!-- ═══════════════════════════════════════════
+       MAIN — header, chat oblast, donji panel
+       ═══════════════════════════════════════════ -->
   <div class="main">
+
+    <!-- header sa statusom i kontrolama -->
     <header class="header">
       <div class="header-left">
         <button class="hamburger" id="hamburgerBtn">
@@ -811,23 +845,24 @@
       </div>
     </header>
 
+    <!-- chat oblast sa welcome karticom -->
     <div id="chat">
       <div class="welcome" id="welcomeCard">
         <div class="welcome-icon">
           <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#fff"/></svg>
         </div>
         <h2>Welcome to <span>BojanBot</span></h2>
-        <p>Your AI-powered coding assistant. Load files, ask questions, get instant help with code reviews, refactoring, architecture, and debugging.</p>
+        <p>Your AI-powered assistant. Ask anything, generate images from text, get real-time info, or load files for analysis.</p>
         <div class="feature-grid">
           <div class="feature-card">
-            <span class="icon">&lt;/&gt;</span>
-            <strong>Code Analysis</strong>
-            <small>Load any file and get instant bug reports and reviews.</small>
+            <span class="icon">&#127912;</span>
+            <strong>Image Generation</strong>
+            <small>Describe any image and get it generated instantly.</small>
           </div>
           <div class="feature-card">
-            <span class="icon">&#9881;</span>
-            <strong>Architecture</strong>
-            <small>System design advice and implementation plans.</small>
+            <span class="icon">&#127760;</span>
+            <strong>Web Search</strong>
+            <small>Real-time info from the web, always up to date.</small>
           </div>
           <div class="feature-card">
             <span class="icon">&#9889;</span>
@@ -838,15 +873,8 @@
       </div>
     </div>
 
+    <!-- donji panel — input, file load, statistika -->
     <div class="bottom">
-      <div class="chips">
-        <button class="chip" data-quick="Analyze this code for bugs, edge cases, and potential improvements.">Bug Review</button>
-        <button class="chip" data-quick="Explain this code section by section.">Explain Code</button>
-        <button class="chip" data-quick="Rewrite this function to be cleaner and more efficient.">Refactor</button>
-        <button class="chip" data-quick="Give me a concise, step-by-step implementation plan.">Plan</button>
-        <button class="chip" data-quick="Write unit tests for this code.">Write Tests</button>
-      </div>
-
       <div class="input-row">
         <div class="input-wrap">
           <input id="message" type="text" placeholder="Ask BojanBot anything..." autocomplete="off" />
@@ -884,10 +912,16 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════════════════════
      JAVASCRIPT
-     ═══════════════════════════════════════════ -->
+     ═══════════════════════════════════════════════════════════════ -->
 <script>
+
+
+/* ═══════════════════════════════════════════════════════════════
+   DOM REFERENCE — svi elementi kojima pristupamo
+   ═══════════════════════════════════════════════════════════════ */
+
 const chatEl      = document.getElementById("chat");
 const msgInput    = document.getElementById("message");
 const sendBtn     = document.getElementById("sendBtn");
@@ -902,13 +936,15 @@ const headerTitle = document.getElementById("headerTitle");
 const sidebar     = document.getElementById("sidebar");
 const overlay     = document.getElementById("sidebarOverlay");
 const hamburger   = document.getElementById("hamburgerBtn");
-const chips       = document.querySelectorAll("[data-quick]");
 
 let turns = 0;
 let files = 0;
 let activeChatId = null;
 
-/* ── helpers ──────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   HELPERI — fetch wrapperi, markdown renderer, formatiranje
+   ═══════════════════════════════════════════════════════════════ */
 
 function syncStats() {
   turnStat.textContent  = turns;
@@ -937,12 +973,13 @@ function renderMarkdown(text) {
     .replace(/`([^`]+)`/g, function(_, code) {
       return '<code>' + code.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</code>';
     })
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy" onclick="window.open(this.src,\'_blank\')">')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  const parts = html.split(/(<pre>[\s\S]*?<\/pre>)/g);
+  const parts = html.split(/(<pre>[\s\S]*?<\/pre>|<img [^>]+>)/g);
   html = parts.map(function(part) {
-    if (part.startsWith('<pre>')) return part;
+    if (part.startsWith('<pre>') || part.startsWith('<img')) return part;
     return part.replace(/\n/g, '<br>');
   }).join('');
   return html;
@@ -956,7 +993,16 @@ function timeAgo(ts) {
   return Math.floor(diff / 86400) + 'd ago';
 }
 
-/* ── sidebar ──────────────────────────────────── */
+function escHtml(s) {
+  var d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   SIDEBAR — toggle, chat lista, switch, delete, rename, new chat
+   ═══════════════════════════════════════════════════════════════ */
 
 function toggleSidebar() {
   sidebar.classList.toggle("open");
@@ -993,18 +1039,15 @@ async function loadChatList() {
         '</button>' +
       '</div>';
 
-    // click to switch
     item.querySelector(".chat-item-info").addEventListener("click", function() {
       switchChat(c.id);
     });
 
-    // rename
     item.querySelector(".rename").addEventListener("click", function(e) {
       e.stopPropagation();
       startRename(c.id, item.querySelector(".chat-item-title"));
     });
 
-    // delete
     item.querySelector(".delete").addEventListener("click", function(e) {
       e.stopPropagation();
       deleteChat(c.id);
@@ -1012,12 +1055,6 @@ async function loadChatList() {
 
     chatList.appendChild(item);
   });
-}
-
-function escHtml(s) {
-  var d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
 }
 
 function startRename(chatId, titleEl) {
@@ -1047,7 +1084,6 @@ function startRename(chatId, titleEl) {
 async function switchChat(chatId) {
   if (chatId === activeChatId) return;
   await postJSON("/api/chats/switch", { id: chatId });
-  // reload chat messages from history
   const data = await getJSON("/api/chats/history?id=" + chatId);
   activeChatId = chatId;
   turns = data.turn || 0;
@@ -1061,7 +1097,6 @@ async function switchChat(chatId) {
 
 async function deleteChat(chatId) {
   await postJSON("/api/chats/delete", { id: chatId });
-  // reload everything
   const data = await getJSON("/api/chats");
   if (data.length > 0) {
     const active = data.find(function(c) { return c.active; }) || data[0];
@@ -1084,6 +1119,11 @@ async function createNewChat() {
 }
 
 newChatBtn.addEventListener("click", createNewChat);
+
+
+/* ═══════════════════════════════════════════════════════════════
+   CHAT PORUKE — renderovanje, welcome kartica, typing indikator
+   ═══════════════════════════════════════════════════════════════ */
 
 function rebuildChat(messages) {
   chatEl.innerHTML = "";
@@ -1111,16 +1151,14 @@ function showWelcome() {
       '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#fff"/></svg>' +
     '</div>' +
     '<h2>Welcome to <span>BojanBot</span></h2>' +
-    '<p>Your AI-powered coding assistant. Start a conversation or load a file.</p>' +
+    '<p>Your AI-powered assistant. Ask anything, generate images from text, get real-time info, or load files for analysis.</p>' +
     '<div class="feature-grid">' +
-      '<div class="feature-card"><span class="icon">&lt;/&gt;</span><strong>Code Analysis</strong><small>Load any file and get instant bug reports and reviews.</small></div>' +
-      '<div class="feature-card"><span class="icon">&#9881;</span><strong>Architecture</strong><small>System design advice and implementation plans.</small></div>' +
+      '<div class="feature-card"><span class="icon">&#127912;</span><strong>Image Generation</strong><small>Describe any image and get it generated instantly.</small></div>' +
+      '<div class="feature-card"><span class="icon">&#127760;</span><strong>Web Search</strong><small>Real-time info from the web, always up to date.</small></div>' +
       '<div class="feature-card"><span class="icon">&#9889;</span><strong>Fast Answers</strong><small>Blazing-fast responses powered by Groq.</small></div>' +
     '</div>';
   chatEl.appendChild(card);
 }
-
-/* ── messages ──────────────────────────────────── */
 
 function hideWelcome() {
   const wc = document.getElementById("welcomeCard");
@@ -1171,7 +1209,10 @@ function hideTyping() {
   if (el) el.remove();
 }
 
-/* ── voice recording ─────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   SNIMANJE GLASA — mikrofon, MediaRecorder, Whisper transkripcija
+   ═══════════════════════════════════════════════════════════════ */
 
 const micBtn = document.getElementById("micBtn");
 let mediaRecorder = null;
@@ -1236,13 +1277,16 @@ async function transcribeAudio(blob, mimeType) {
   }
 }
 
-/* ── send / load / reset ─────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   SLANJE / LOAD / RESET — glavne chat akcije
+   ═══════════════════════════════════════════════════════════════ */
 
 async function sendMessage() {
   const text = msgInput.value.trim();
   if (!text) return;
 
-  // voice trigger commands
+  // voice trigger komande
   const voiceTriggers = ["/voice", "start voice", "voice on", "pokreni glas", "slušaj"];
   if (voiceTriggers.includes(text.toLowerCase())) {
     msgInput.value = "";
@@ -1267,7 +1311,6 @@ async function sendMessage() {
       addMsg(data.reply, "bot", true, false);
       if (ttsEnabled) speak(data.reply);
     }
-    // refresh sidebar to pick up auto-title
     loadChatList();
   } catch (_) {
     hideTyping();
@@ -1310,25 +1353,25 @@ async function loadFile() {
   }
 }
 
-/* ── event listeners ──────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   EVENT LISTENERI — tastatura, dugmad, precice
+   ═══════════════════════════════════════════════════════════════ */
 
 sendBtn.addEventListener("click", sendMessage);
 clearBtn.addEventListener("click", clearChat);
 loadBtn.addEventListener("click", loadFile);
-
-chips.forEach(function(btn) {
-  btn.addEventListener("click", function() {
-    msgInput.value = btn.dataset.quick || "";
-    msgInput.focus();
-  });
-});
 
 msgInput.addEventListener("keydown", function(e) {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   if (e.key === "Enter" && e.shiftKey)  { e.preventDefault(); fileInput.focus(); }
 });
 
-// Alt+V anywhere on the page toggles voice recording
+fileInput.addEventListener("keydown", function(e) {
+  if (e.key === "Enter") { e.preventDefault(); loadFile(); }
+});
+
+// Alt+V bilo gde na stranici toggleuje snimanje glasa
 document.addEventListener("keydown", function(e) {
   if (e.altKey && e.key.toLowerCase() === "v" && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
@@ -1336,7 +1379,11 @@ document.addEventListener("keydown", function(e) {
   }
 });
 
-/* ── wake word detection ──────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   WAKE WORD — "Hey JARVIS" detekcija putem SpeechRecognition
+   Kad prepozna wake frazu, slusa komandu i salje je kao poruku.
+   ═══════════════════════════════════════════════════════════════ */
 
 const wakeBtn      = document.getElementById("wakeBtn");
 const SpeechRec    = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1345,20 +1392,12 @@ const WAKE_PHRASES = [
   "wake up", "hello", "hey bot"
 ];
 
-let wakeRecognition   = null;
+let wakeRecognition    = null;
 let commandRecognition = null;
-let wakeWordEnabled   = false;
-let commandActive     = false;
-let isSpeaking        = false;
-let ttsEnabled        = false;
-
-const ttsBtn = document.getElementById("ttsBtn");
-ttsBtn.addEventListener("click", function() {
-  ttsEnabled = !ttsEnabled;
-  ttsBtn.classList.toggle("active", ttsEnabled);
-  ttsBtn.title = ttsEnabled ? "Voice replies on (click to disable)" : "Enable voice replies";
-  if (!ttsEnabled) window.speechSynthesis && speechSynthesis.cancel();
-});
+let wakeWordEnabled    = false;
+let commandActive      = false;
+let isSpeaking         = false;
+let ttsEnabled         = false;
 
 wakeBtn.addEventListener("click", toggleWakeWord);
 
@@ -1474,7 +1513,19 @@ function onWakeWordDetected() {
   try { commandRecognition.start(); } catch(_) {}
 }
 
-/* ── text-to-speech ───────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   TEXT-TO-SPEECH — glasovni odgovori (Voice dugme u headeru)
+   Cita odgovor bota naglas, pauzira wake mic da ne hvata feedback.
+   ═══════════════════════════════════════════════════════════════ */
+
+const ttsBtn = document.getElementById("ttsBtn");
+ttsBtn.addEventListener("click", function() {
+  ttsEnabled = !ttsEnabled;
+  ttsBtn.classList.toggle("active", ttsEnabled);
+  ttsBtn.title = ttsEnabled ? "Voice replies on (click to disable)" : "Enable voice replies";
+  if (!ttsEnabled) window.speechSynthesis && speechSynthesis.cancel();
+});
 
 function stripMarkdown(text) {
   return text
@@ -1498,9 +1549,9 @@ function speak(text) {
   const utter = new SpeechSynthesisUtterance(clean);
   utter.lang  = "en-US";
   utter.rate  = 1.05;
-  utter.pitch = 0.88; // slightly lower — more JARVIS-like
+  utter.pitch = 0.88;
 
-  // pause wake mic while speaking to avoid feedback
+  // pauziraj wake mic dok govori da ne hvata sam sebe
   isSpeaking = true;
   try { wakeRecognition && wakeRecognition.abort(); } catch(_) {}
 
@@ -1518,11 +1569,12 @@ function speak(text) {
   speechSynthesis.speak(utter);
 }
 
-fileInput.addEventListener("keydown", function(e) {
-  if (e.key === "Enter") { e.preventDefault(); loadFile(); }
-});
 
-/* ── weather enrichment for chat ─────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   WEATHER ENRICHMENT — obogacuje chat poruke vremenskom prognozom
+   Detektuje weather pitanja, fetchuje podatke za grad, i ubacuje
+   ih kao kontekst pre slanja na LLM.
+   ═══════════════════════════════════════════════════════════════ */
 
 let localWeather = null;
 
@@ -1597,7 +1649,10 @@ async function enrichWithWeather(text) {
   return ctx + "\n\n" + text;
 }
 
-/* ── clock ────────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   SAT — real-time sat u sidebar footeru
+   ═══════════════════════════════════════════════════════════════ */
 
 const clockEl = document.getElementById("clockEl");
 
@@ -1610,7 +1665,12 @@ function startClock() {
   setInterval(tick, 1000);
 }
 
-/* ── weather ──────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   VREMENSKA PROGNOZA — sidebar widget + WMO kodovi
+   Fetchuje lokaciju po IP-u, zatim vreme sa Open-Meteo API.
+   Refreshuje se na 10 minuta.
+   ═══════════════════════════════════════════════════════════════ */
 
 const WMO = {
   0:  ["☀️",  "Clear"],
@@ -1643,7 +1703,7 @@ const weatherEl = document.getElementById("weatherEl");
 
 async function fetchWeather() {
   try {
-    // Try ipapi.co first (HTTPS, no key needed)
+    // Probaj ipapi.co prvo (HTTPS, bez API kljuca)
     let lat, lon, city;
     try {
       const r = await fetch("https://ipapi.co/json/");
@@ -1655,7 +1715,7 @@ async function fetchWeather() {
       }
     } catch (_) {}
 
-    // Fallback: ip-api.com (HTTP only, works on local server)
+    // Fallback: ip-api.com (HTTP, radi na lokalu)
     if (!lat) {
       const r = await fetch("http://ip-api.com/json");
       const d = await r.json();
@@ -1682,7 +1742,7 @@ async function fetchWeather() {
     const code  = w.current.weather_code;
     const [icon, desc] = WMO[code] || ["🌡", "Unknown"];
 
-    // store for chat enrichment
+    // sacuvaj za weather enrichment u chatu
     localWeather = {
       label:    city,
       temp, feels, desc,
@@ -1694,7 +1754,7 @@ async function fetchWeather() {
       icon + " <strong>" + temp + "°C</strong> · " + desc +
       "<br>Feels " + feels + "°C · 📍 " + city;
 
-    // refresh every 10 minutes
+    // refresh na 10 minuta
     setTimeout(fetchWeather, 10 * 60 * 1000);
   } catch (err) {
     weatherEl.textContent = "Weather unavailable";
@@ -1702,11 +1762,15 @@ async function fetchWeather() {
   }
 }
 
-/* ── init ─────────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════
+   INIT — pokretanje aplikacije
+   ═══════════════════════════════════════════════════════════════ */
 
 (async function init() {
   await loadChatList();
-  // load active chat history
+
+  // ucitaj istoriju aktivnog chata
   if (activeChatId) {
     const data = await getJSON("/api/chats/history?id=" + activeChatId);
     const msgs = (data.messages || []).filter(function(m) { return m.role !== "system"; });
@@ -1717,10 +1781,13 @@ async function fetchWeather() {
       syncStats();
     }
   }
+
   startClock();
   fetchWeather();
   msgInput.focus();
 })();
+
+
 </script>
 </body>
 </html>
