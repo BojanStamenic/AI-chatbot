@@ -72,13 +72,41 @@ function addMsg(text, type, useMarkdown, noAnim) {
   return div;
 }
 
-function showTyping() {
+function showTyping(statusText) {
   hideWelcome();
   const el = document.createElement("div");
-  el.className = "typing"; el.id = "typingIndicator";
-  el.innerHTML = "<span></span><span></span><span></span>";
+  el.className = "typing"; 
+  el.id = "typingIndicator";
+  
+  // Status text if provided
+  if (statusText) {
+    const status = document.createElement("div");
+    status.className = "typing-status";
+    status.textContent = statusText;
+    el.appendChild(status);
+  }
+  
+  // Animated dots
+  const dots = document.createElement("div");
+  dots.className = "typing-dots";
+  dots.innerHTML = "<span></span><span></span><span></span>";
+  el.appendChild(dots);
+  
   chatEl.appendChild(el);
   chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function updateTypingStatus(statusText) {
+  const el = document.getElementById("typingIndicator");
+  if (!el) return;
+  
+  let statusDiv = el.querySelector(".typing-status");
+  if (!statusDiv) {
+    statusDiv = document.createElement("div");
+    statusDiv.className = "typing-status";
+    el.insertBefore(statusDiv, el.firstChild);
+  }
+  statusDiv.textContent = statusText;
 }
 
 function hideTyping() {

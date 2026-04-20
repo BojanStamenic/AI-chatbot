@@ -202,9 +202,15 @@ body::after {
   border-color: transparent; color: #fff; font-weight: 700;
   box-shadow: 0 4px 14px var(--accent-glow);
 }
-.btn-accent:hover {
+.btn-accent:hover:not(:disabled) {
   background: linear-gradient(135deg, var(--accent-hover), var(--accent));
   color: #fff; box-shadow: 0 6px 24px var(--accent-glow);
+}
+.btn-accent:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  background: linear-gradient(135deg, #7a5a3a, #5a4428);
 }
 
 .btn-ghost {

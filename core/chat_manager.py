@@ -33,6 +33,31 @@ class ChatManager:
             self.chats = {}
             self.active_id = None
 
+    def _serialize_history(self, history):
+        """Convert history with tool_calls objects to JSON-serializable format."""
+        serialized = []
+        for msg in history:
+            msg_copy = msg.copy()
+            
+            # Handle tool_calls field if present
+            if "tool_calls" in msg_copy and msg_copy["tool_calls"]:
+                # tool_calls is already a list of dicts from our code, just ensure it's serializable
+                tool_calls_list = []
+                for tc in msg_copy["tool_calls"]:
+                    if isinstance(tc, dict):
+                        tool_calls_list.append(tc)
+                    else:
+                        # If it's an object, convert to dict
+                        tool_calls_list.append({
+                            "id": tc.get("id", ""),
+                            "type": tc.get("type", "function"),
+                            "function": tc.get("function", {})
+                        })
+                msg_copy["tool_calls"] = tool_calls_list
+            
+            serialized.append(msg_copy)
+        return serialized
+
     def _save(self):
         self._snapshot_current()
         data = {"active": self.active_id, "chats": self.chats}
@@ -42,7 +67,8 @@ class ChatManager:
     def _snapshot_current(self):
         if self.active_id and self.active_id in self.chats:
             chat = self.chats[self.active_id]
-            chat["history"] = self.bot.history
+            # Serialize history to ensure tool_calls are JSON-compatible
+            chat["history"] = self._serialize_history(self.bot.history)
             chat["turn"] = self.bot.turn
             chat["loaded_files"] = self.bot.loaded_files
 
