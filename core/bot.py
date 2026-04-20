@@ -43,7 +43,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "web_search",
-            "description": """Search the web for current information, news, scores, events, prices, or any real-time data. 
+            "description": """Search the web for current information, news, scores, events, prices, or any real-time data.
+
+ALSO REQUIRED for factual content where fabrication would mislead the user:
+- Song lyrics, poems, or any verbatim text by a real author/artist
+- Discographies, filmographies, book lists, album tracklists
+- Direct quotes attributed to real people
+- Biographical facts (birth dates, awards, specific events)
+If you do not have the exact text/fact memorized with high confidence, you MUST search instead of generating plausible-sounding content. Never invent lyrics or quotes.
 
 IMPORTANT for "latest" or "most recent" event queries:
 1. Check if the event typically happens BEFORE the current date in the year
@@ -137,6 +144,17 @@ class BojanBot:
         self.history = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.loaded_files = []
 
+    def _trim_history(self, keep_last: int = 20):
+        """Keep system prompt + last N messages. Preserve tool_call/tool_response pairs."""
+        if len(self.history) <= keep_last + 1:
+            return
+        system = self.history[0]
+        tail = self.history[-keep_last:]
+        # If tail starts with a 'tool' message, drop it — its matching assistant tool_call was trimmed.
+        while tail and tail[0].get("role") == "tool":
+            tail = tail[1:]
+        self.history = [system] + tail
+
     @staticmethod
     def _looks_like_failure(result: str) -> bool:
         if not result or not result.strip():
@@ -217,6 +235,9 @@ class BojanBot:
 
         # Add user message to history
         self.history.append({"role": "user", "content": user_message})
+
+        # Trim old messages to stay under token/rate limits
+        self._trim_history(keep_last=20)
 
         # Agentic loop: keep calling LLM until it returns a text response
         max_iterations = 10  # Safety limit to prevent infinite loops
