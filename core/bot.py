@@ -137,6 +137,17 @@ class BojanBot:
         self.history = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.loaded_files = []
 
+    @staticmethod
+    def _looks_like_failure(result: str) -> bool:
+        if not result or not result.strip():
+            return True
+        head = result.strip().lower()[:200]
+        markers = (
+            "error:", "error executing", "file not found",
+            "search returned no results", "no results", "failed", "timeout",
+        )
+        return any(m in head for m in markers)
+
     def _execute_tool(self, tool_name: str, arguments: dict) -> str:
         """Execute a tool call and return the result as a string."""
         try:
@@ -210,6 +221,7 @@ class BojanBot:
         # Agentic loop: keep calling LLM until it returns a text response
         max_iterations = 10  # Safety limit to prevent infinite loops
         iteration = 0
+        tool_failures: Dict[str, int] = {}  # Track consecutive failures per tool
         
         while iteration < max_iterations:
             iteration += 1
@@ -291,7 +303,7 @@ class BojanBot:
                     
                     # Execute the tool
                     result = self._execute_tool(tool_name, arguments)
-                    
+
                     # Add tool result to history
                     self.history.append({
                         "role": "tool",
@@ -299,7 +311,29 @@ class BojanBot:
                         "name": tool_name,
                         "content": result
                     })
-                
+
+                    # Escalation: on failure, nudge the model toward a different approach.
+                    if self._looks_like_failure(result):
+                        tool_failures[tool_name] = tool_failures.get(tool_name, 0) + 1
+                        fails = tool_failures[tool_name]
+                        if fails == 1:
+                            nudge = (
+                                f"The last `{tool_name}` call failed or returned nothing useful. "
+                                "Try a different approach: reformulate the arguments (e.g. a different "
+                                "search query or file path), switch to a different tool, or ask the user "
+                                "a clarifying question via `ask_clarification` if intent is unclear."
+                            )
+                        else:
+                            nudge = (
+                                f"`{tool_name}` has now failed {fails} times. STOP calling this tool. "
+                                "Either answer from your existing knowledge (and flag the limitation), "
+                                "use a different tool, or call `ask_clarification` to get more info "
+                                "from the user."
+                            )
+                        self.history.append({"role": "system", "content": nudge})
+                    else:
+                        tool_failures[tool_name] = 0
+
                 # Continue loop to let model process tool results
                 continue
             
