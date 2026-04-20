@@ -1,0 +1,70 @@
+/* ═══════════════════════════════════════════
+   VOICE — wake word, mic, TTS dugmad
+   ═══════════════════════════════════════════ */
+
+/* wake word dugmic (Voice, Hey JARVIS) */
+.btn-wake {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 12px; font-weight: 700;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: all 180ms ease;
+  white-space: nowrap;
+}
+.btn-wake:hover {
+  background: var(--bg-card); color: var(--text-secondary);
+  border-color: rgba(255,255,255,0.12);
+}
+.btn-wake.active {
+  background: rgba(52, 211, 153, 0.08);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: var(--success);
+}
+.btn-wake .wake-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.btn-wake.active .wake-dot {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.btn-wake.listening {
+  background: rgba(239, 127, 26, 0.1);
+  border-color: var(--border-accent);
+  color: var(--accent);
+  animation: micPulse 1.2s ease-in-out infinite;
+}
+
+/* mikrofon dugmic */
+.btn-mic {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  width: 46px;
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 180ms ease;
+}
+.btn-mic:hover {
+  background: var(--bg-card); color: var(--text-primary);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+}
+.btn-mic.recording {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #f87171;
+  animation: micPulse 1.2s ease-in-out infinite;
+}
+.btn-mic:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+@keyframes micPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
+  60%  { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
