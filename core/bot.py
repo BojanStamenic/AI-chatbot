@@ -99,6 +99,28 @@ IMPORTANT for "latest" or "most recent" event queries:
                 "required": ["prompt"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_clarification",
+            "description": """Ask the user a clarifying question BEFORE taking action when their request is ambiguous, under-specified, or could be interpreted multiple ways. Use this instead of guessing. Examples of when to use:
+- User says "read the file" but doesn't specify which file
+- User says "generate an image" with no subject/description
+- User says "search for that" with no clear referent
+- Request could mean two very different things (e.g., "fix the bug" — which bug?)
+Do NOT use for trivia questions or when you can answer from context. Only use when acting on a guess would likely waste the user's time.""",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "The clarifying question to ask the user. Be specific about what you need to know and why."
+                    }
+                },
+                "required": ["question"]
+            }
+        }
     }
 ]
 
@@ -226,6 +248,21 @@ class BojanBot:
                         for tc in parsed_calls
                     ]
             
+            # Short-circuit: if the model is asking the user for clarification,
+            # surface the question as a normal assistant reply and stop the loop.
+            clarification_call = next(
+                (tc for tc in tool_calls_to_process if tc.function.name == "ask_clarification"),
+                None
+            )
+            if clarification_call:
+                try:
+                    args = json.loads(clarification_call.function.arguments)
+                except json.JSONDecodeError:
+                    args = {}
+                question = args.get("question", "Could you clarify what you'd like me to do?")
+                self.history.append({"role": "assistant", "content": question})
+                return question
+
             # If model wants to use tools, execute them
             if tool_calls_to_process:
                 # Add assistant's tool call message to history
