@@ -2,6 +2,36 @@
    SLANJE / LOAD / RESET — glavne chat akcije
    ═══════════════════════════════════════════════════════════════ */
 
+function detectOperationType(text) {
+  const lower = text.toLowerCase();
+  
+  // Image generation patterns
+  const imagePatterns = [
+    'generate image', 'create image', 'make image', 'draw', 'generiši sliku',
+    'napravi sliku', 'nacrtaj', 'generate a picture', 'create a picture'
+  ];
+  if (imagePatterns.some(p => lower.includes(p))) {
+    return { type: 'image', status: '🎨 Generating image...' };
+  }
+  
+  // Web search patterns
+  const searchPatterns = [
+    'latest', 'current', 'today', 'who won', 'what happened', 'score',
+    'news', 'price of', 'najnovije', 'trenutno', 'danas', 'rezultat'
+  ];
+  if (searchPatterns.some(p => lower.includes(p))) {
+    return { type: 'search', status: '🔍 Searching the web...' };
+  }
+  
+  // File loading
+  if (lower.includes('load') || lower.includes('read file') || lower.includes('učitaj')) {
+    return { type: 'file', status: '📂 Loading file...' };
+  }
+  
+  // Default thinking
+  return { type: 'default', status: '💭 Thinking...' };
+}
+
 async function sendMessage() {
   const text = msgInput.value.trim();
   if (!text) return;
@@ -18,10 +48,19 @@ async function sendMessage() {
   addMsg(text, "user", false, false);
   msgInput.value = "";
   sendBtn.disabled = true;
-  showTyping();
+  
+  // Detect operation type and show appropriate status
+  const operation = detectOperationType(text);
+  showTyping(operation.status);
 
   try {
     const enriched = await enrichWithWeather(text);
+    
+    // If it's likely a search, update status after initial request
+    if (operation.type === 'search') {
+      setTimeout(() => updateTypingStatus('🔍 Analyzing results...'), 2000);
+    }
+    
     const data = await postJSON("/chat", { message: enriched });
     hideTyping();
     if (data.error) {
@@ -55,8 +94,12 @@ async function loadFile() {
   const path = fileInput.value.trim();
   if (!path) return;
   loadBtn.disabled = true;
+  
+  showTyping('📂 Loading file...');
+  
   try {
     const data = await postJSON("/load", { path: path });
+    hideTyping();
     if (data.error) {
       addMsg(data.error, "error", false, false);
     } else {
@@ -65,6 +108,7 @@ async function loadFile() {
       fileInput.value = "";
     }
   } catch (_) {
+    hideTyping();
     addMsg("Failed to load file.", "error", false, false);
   } finally {
     loadBtn.disabled = false;

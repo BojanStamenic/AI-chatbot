@@ -54,11 +54,29 @@ class Handler(BaseHTTPRequestHandler):
                         chat_id = part[3:]
             if chat_id and chat_id in manager.chats:
                 c = manager.chats[chat_id]
+                
+                # Filter history to only include user and assistant messages with content
+                # Hide internal tool messages and tool_calls from frontend
+                filtered_messages = []
+                for msg in c["history"]:
+                    role = msg.get("role")
+                    # Skip system, tool messages, and assistant messages without content
+                    if role == "system" or role == "tool":
+                        continue
+                    if role == "assistant" and not msg.get("content"):
+                        continue  # Skip assistant messages that only have tool_calls
+                    # Include user and assistant messages with actual content
+                    if role in ("user", "assistant") and msg.get("content"):
+                        filtered_messages.append({
+                            "role": role,
+                            "content": msg["content"]
+                        })
+                
                 self._send_json(200, {
                     "title": c["title"],
                     "turn": c["turn"],
                     "loaded_files": c.get("loaded_files", []),
-                    "messages": c["history"],
+                    "messages": filtered_messages,
                 })
             else:
                 self._send_json(404, {"error": "Chat not found"})
