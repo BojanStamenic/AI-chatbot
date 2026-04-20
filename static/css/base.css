@@ -1,0 +1,315 @@
+/* ═══════════════════════════════════════════
+   DESIGN TOKENS — boje, fontovi, radijusi, senke
+   ═══════════════════════════════════════════ */
+:root {
+  --bg-deep:       #06080d;
+  --bg-surface:    #0c1017;
+  --bg-card:       #111722;
+  --bg-elevated:   #161d2b;
+  --bg-input:      #0f1520;
+  --bg-sidebar:    #090c12;
+
+  --accent:        #ef7f1a;
+  --accent-hover:  #ff9a3c;
+  --accent-glow:   rgba(239, 127, 26, 0.35);
+  --accent-subtle: rgba(239, 127, 26, 0.08);
+
+  --text-primary:  #e8ecf4;
+  --text-secondary:#8c95a8;
+  --text-muted:    #555f73;
+  --text-inverse:  #06080d;
+
+  --border:        rgba(255, 255, 255, 0.06);
+  --border-accent: rgba(239, 127, 26, 0.25);
+
+  --user-bg:       rgba(239, 127, 26, 0.08);
+  --user-border:   rgba(239, 127, 26, 0.22);
+  --bot-bg:        rgba(99, 145, 255, 0.06);
+  --bot-border:    rgba(99, 145, 255, 0.15);
+  --system-bg:     rgba(255, 255, 255, 0.03);
+  --error-bg:      rgba(239, 68, 68, 0.08);
+  --error-border:  rgba(239, 68, 68, 0.25);
+  --error-text:    #f87171;
+  --success:       #34d399;
+
+  --font-sans:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:     'JetBrains Mono', 'Fira Code', monospace;
+
+  --radius-sm:     8px;
+  --radius-md:     12px;
+  --radius-lg:     16px;
+  --radius-xl:     20px;
+  --radius-full:   9999px;
+
+  --shadow-sm:     0 2px 8px rgba(0,0,0,0.3);
+  --shadow-md:     0 8px 30px rgba(0,0,0,0.4);
+  --shadow-lg:     0 20px 60px rgba(0,0,0,0.5);
+  --shadow-glow:   0 0 40px var(--accent-glow);
+
+  --sidebar-w:     280px;
+}
+
+/* ═══════════════════════════════════════════
+   RESET
+   ═══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+body {
+  height: 100vh;
+  display: flex;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--bg-deep);
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════
+   POZADINSKI EFEKTI — gradijenti i grid overlay
+   ═══════════════════════════════════════════ */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 800px 600px at 20% 10%, rgba(239,127,26,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 600px 500px at 80% 90%, rgba(59,130,246,0.04) 0%, transparent 60%);
+  animation: bgPulse 8s ease-in-out infinite alternate;
+  pointer-events: none; z-index: 0;
+}
+@keyframes bgPulse {
+  0%   { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none; z-index: 0;
+}
+
+/* ═══════════════════════════════════════════
+   LAYOUT — sidebar + main flex container
+   ═══════════════════════════════════════════ */
+.layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════
+   MAIN PANEL — header + chat + bottom
+   ═══════════════════════════════════════════ */
+.main {
+  flex: 1;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
+  background: var(--bg-surface);
+}
+
+/* header sa statusom i kontrolama */
+.header {
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(17,23,34,0.9), var(--bg-surface));
+  backdrop-filter: blur(16px);
+}
+
+.header-left {
+  display: flex; align-items: center; gap: 12px;
+}
+
+.hamburger {
+  display: none;
+  width: 36px; height: 36px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  align-items: center; justify-content: center;
+}
+
+.hamburger svg { width: 18px; height: 18px; }
+
+.header-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 500px;
+}
+
+.header-right {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px rgba(52,211,153,0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+.status-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+
+/* ═══════════════════════════════════════════
+   DUGMAD — osnovni, accent, ghost stilovi
+   ═══════════════════════════════════════════ */
+
+.btn {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 13px; font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 180ms ease;
+  display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: var(--bg-card); color: var(--text-primary);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-1px); box-shadow: var(--shadow-sm);
+}
+.btn:active { transform: translateY(0); }
+.btn:disabled {
+  opacity: 0.4; cursor: not-allowed;
+  transform: none !important; box-shadow: none !important;
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, var(--accent), #d66908);
+  border-color: transparent; color: #fff; font-weight: 700;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.btn-accent:hover {
+  background: linear-gradient(135deg, var(--accent-hover), var(--accent));
+  color: #fff; box-shadow: 0 6px 24px var(--accent-glow);
+}
+
+.btn-ghost {
+  background: transparent; border-color: transparent;
+  color: var(--text-muted); padding: 8px 10px;
+}
+.btn-ghost:hover {
+  background: var(--accent-subtle); color: var(--accent);
+  border-color: transparent;
+}
+
+/* ═══════════════════════════════════════════
+   DONJI PANEL — input, file load, statistika
+   ═══════════════════════════════════════════ */
+.bottom {
+  border-top: 1px solid var(--border);
+  padding: 14px 24px;
+  background: var(--bg-surface);
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.input-row { display: flex; gap: 10px; align-items: stretch; }
+
+.input-wrap { flex: 1; position: relative; }
+.input-wrap input {
+  width: 100%; background: var(--bg-input);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 12px 16px; font-size: 14px; font-family: var(--font-sans);
+  color: var(--text-primary); transition: all 200ms ease;
+}
+.input-wrap input::placeholder { color: var(--text-muted); }
+.input-wrap input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-sm);
+}
+
+.file-row { display: flex; gap: 10px; align-items: stretch; }
+.file-row .input-wrap input { font-family: var(--font-mono); font-size: 13px; }
+
+.stats-bar {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.stats-left { display: flex; gap: 16px; }
+.stat {
+  font-size: 11px; color: var(--text-muted); font-weight: 600;
+  display: flex; align-items: center; gap: 5px;
+}
+.stat-val { color: var(--text-secondary); font-family: var(--font-mono); }
+.stats-right { font-size: 11px; color: var(--text-muted); }
+.stats-right kbd {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 5px; font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* ═══════════════════════════════════════════
+   RENAME — inline edit u sidebaru
+   ═══════════════════════════════════════════ */
+.rename-input {
+  background: var(--bg-input);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 6px;
+  width: 100%;
+  outline: none;
+}
+
+/* ═══════════════════════════════════════════
+   MOBILE OVERLAY
+   ═══════════════════════════════════════════ */
+.sidebar-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 9;
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE — mobilni layout
+   ═══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed; left: 0; top: 0; height: 100%;
+    transform: translateX(-100%);
+    z-index: 10;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-overlay.open { display: block; }
+  .hamburger { display: flex; }
+  .header { padding: 10px 16px; }
+  #chat { padding: 14px 16px; }
+  .bottom { padding: 12px 16px; }
+  .msg { max-width: 92%; }
+  .feature-grid { grid-template-columns: 1fr; }
+  .welcome { padding: 24px 12px 16px; }
+  .welcome h2 { font-size: 18px; }
+  .input-row, .file-row { flex-direction: column; }
+}
+
+@media (max-width: 480px) {
+  .status-label { display: none; }
+  .stats-right { display: none; }
+}
