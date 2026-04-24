@@ -7,7 +7,6 @@ const msgInput    = document.getElementById("message");
 const sendBtn     = document.getElementById("sendBtn");
 const clearBtn    = document.getElementById("clearBtn");
 const loadBtn     = document.getElementById("loadBtn");
-const fileInput   = document.getElementById("filePath");
 const turnStat    = document.getElementById("turnStat");
 const loadedStat  = document.getElementById("loadedStat");
 const chatList    = document.getElementById("chatList");
