@@ -130,8 +130,36 @@ def _web_search(query: str) -> str:
                     continue
             
             if hits:
+                # Filter out low-trust domains (betting, clickbait farms) that
+                # routinely contain fabricated or promotional "facts" framed as
+                # results. They often outrank real sources on DDG.
+                _BLOCKED = (
+                    "legalbet", "mozzartbet", "meridianbet", "oktagonbet",
+                    "balkanbet", "soccerpunter", "tipsters", "betting",
+                    "kladionica", "soccer24", "bukmeker",
+                )
+                # Boost trusted sources to the top.
+                _TRUSTED = (
+                    "wikipedia.org", "uefa.com", "fifa.com", "bbc.",
+                    "reuters.com", "espn.com", "nytimes.com", "theguardian.com",
+                    "sky sports", "skysports", "britannica.com",
+                )
+                def _rank(h):
+                    href = (h.get("href") or h.get("link") or "").lower()
+                    if any(b in href for b in _BLOCKED):
+                        return 2  # drop to end
+                    if any(t in href for t in _TRUSTED):
+                        return 0  # top
+                    return 1
+                hits = [h for h in hits if _rank(h) < 2]
+                hits.sort(key=_rank)
+                if not hits:
+                    if attempt < max_retries - 1:
+                        _time.sleep(base_delay + _random.random())
+                        continue
+                    return "[Search returned only low-trust sources. Do not trust these — say you couldn't verify.]"
                 snippets = "\n\n".join(
-                    f"{i+1}. {h['title']}\n{h['body']}" for i, h in enumerate(hits)
+                    f"{i+1}. {h['title']}\n{h.get('href','')}\n{h['body']}" for i, h in enumerate(hits)
                 )
                 result = f"[Web search results]\n{snippets}"
                 

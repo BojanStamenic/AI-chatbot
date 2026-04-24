@@ -176,9 +176,25 @@ class Handler(BaseHTTPRequestHandler):
                 reply = bot.chat(msg)
                 manager.auto_title(manager.active_id, msg)
                 manager.save_after_message()
-                self._send_json(200, {"reply": reply})
+                self._send_json(200, {
+                    "reply": reply,
+                    "tokens_today": getattr(bot, "tokens_today", 0),
+                    "tokens_last_turn": getattr(bot, "tokens_last_turn", 0),
+                    "active_model": getattr(bot, "active_model", ""),
+                })
             except Exception as exc:
-                self._send_json(500, {"error": f"Model request failed: {exc}"})
+                import re as _re
+                err_text = str(exc)
+                m = _re.search(r"Used\s+(\d+)", err_text)
+                if m:
+                    try:
+                        bot.tokens_today = max(getattr(bot, "tokens_today", 0), int(m.group(1)))
+                    except Exception:
+                        pass
+                self._send_json(500, {
+                    "error": f"Model request failed: {exc}",
+                    "tokens_today": getattr(bot, "tokens_today", 0),
+                })
             return
 
         if self.path == "/reset":

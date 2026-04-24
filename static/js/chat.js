@@ -48,6 +48,14 @@ function hideWelcome() {
 }
 
 function addMsg(text, type, useMarkdown, noAnim) {
+  if (type === "bot" && !noAnim && typeof applySiteActions === "function") {
+    text = applySiteActions(text);
+    if (!text) return null;
+  } else if (type === "bot" && noAnim && typeof applySiteActions === "function") {
+    // Rebuilding history — strip tags from display but DO NOT re-execute actions
+    text = text.replace(/<site-action>[\s\S]*?<\/site-action>/g, "").trim();
+    if (!text) return null;
+  }
   hideWelcome();
   const div = document.createElement("div");
   div.className = "msg " + type;
