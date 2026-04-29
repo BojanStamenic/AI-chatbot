@@ -435,6 +435,7 @@ body.widget-mode .welcome-icon {
   width: 48px;
   height: 48px;
   border-radius: 14px;
+  padding-top: 4px;
 }
 
 body.widget-mode .welcome-icon::before {
