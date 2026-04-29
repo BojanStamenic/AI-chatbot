@@ -5,5 +5,47 @@
     "fact": "Jer mi smo ista generacija i pesma nam je inspiracija, iste zelje, ista akcija, to je dobra kombinacija",
     "source": "Tekstovi.net",
     "verified_at": "2026-04-24T11:40:35"
+  },
+  {
+    "topic": "geography",
+    "subtopic": "capital of Australia",
+    "fact": "The capital of Australia is Canberra, not Sydney.",
+    "source": "https://en.wikipedia.org/wiki/Canberra",
+    "verified_at": "2026-04-29T10:00:00"
+  },
+  {
+    "topic": "person birthdate",
+    "subtopic": "Nikola Tesla",
+    "fact": "Nikola Tesla was born on 10 July 1856 in Smiljan, Austrian Empire (modern-day Croatia).",
+    "source": "https://en.wikipedia.org/wiki/Nikola_Tesla",
+    "verified_at": "2026-04-29T10:00:00"
+  },
+  {
+    "topic": "physics constant",
+    "subtopic": "speed of light in vacuum",
+    "fact": "The speed of light in vacuum is exactly 299,792,458 metres per second.",
+    "source": "https://en.wikipedia.org/wiki/Speed_of_light",
+    "verified_at": "2026-04-29T10:00:00"
+  },
+  {
+    "topic": "programming language release",
+    "subtopic": "Python 3.0",
+    "fact": "Python 3.0 was released on 3 December 2008.",
+    "source": "https://en.wikipedia.org/wiki/History_of_Python",
+    "verified_at": "2026-04-29T15:24:31"
+  },
+  {
+    "topic": "geography",
+    "subtopic": "tallest mountain on Earth",
+    "fact": "Mount Everest is the tallest mountain above sea level at 8,848.86 metres.",
+    "source": "https://en.wikipedia.org/wiki/Mount_Everest",
+    "verified_at": "2026-04-29T10:00:00"
+  },
+  {
+    "topic": "literature",
+    "subtopic": "author of 1984",
+    "fact": "The novel 1984 was written by George Orwell and published in 1949.",
+    "source": "https://en.wikipedia.org/wiki/Nineteen_Eighty-Four",
+    "verified_at": "2026-04-29T10:00:00"
   }
 ]

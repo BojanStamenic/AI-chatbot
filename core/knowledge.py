@@ -47,6 +47,28 @@ def add(topic: str, fact: str, source: str = "", subtopic: str = ""):
     save(entries)
 
 
+def delete(idx: int) -> bool:
+    entries = load()
+    if 0 <= idx < len(entries):
+        entries.pop(idx)
+        save(entries)
+        return True
+    return False
+
+
+def update(idx: int, **fields) -> bool:
+    entries = load()
+    if not (0 <= idx < len(entries)):
+        return False
+    allowed = ("topic", "subtopic", "fact", "source")
+    for k, v in fields.items():
+        if k in allowed and isinstance(v, str):
+            entries[idx][k] = v.strip()
+    entries[idx]["verified_at"] = datetime.now().isoformat(timespec="seconds")
+    save(entries)
+    return True
+
+
 def find_relevant(query: str, n: int = 5) -> List[Dict]:
     """Keyword overlap between query and each entry's topic+subtopic+fact.
     Subtopic matches are weighted highest so specific entries (e.g. a particular
