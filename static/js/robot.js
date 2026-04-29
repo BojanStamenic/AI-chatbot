@@ -53,6 +53,9 @@
     const existingOuch = document.querySelector(".robot-ouch");
     if (existingOuch) existingOuch.remove();
 
+    // Make robot sad temporarily
+    makeSad();
+
     // Create ouch element
     const ouch = document.createElement("div");
     ouch.className = "robot-ouch";
@@ -70,6 +73,34 @@
 
     // Remove after animation
     setTimeout(() => ouch.remove(), 800);
+  }
+
+  function makeSad() {
+    // Change all robot smiles to sad mouths
+    document.querySelectorAll("svg.robot-svg").forEach(svg => {
+      const mouth = svg.querySelector('path');
+      if (mouth && !mouth.classList.contains("robot-sad") && !mouth.classList.contains("robot-dead-mouth")) {
+        // Only save original if not already saved
+        if (!mouth.dataset.originalD) {
+          mouth.dataset.originalD = mouth.getAttribute("d");
+        }
+        mouth.setAttribute("d", "M 8 16.5 Q 12 14.5 16 16.5");
+        mouth.classList.add("robot-sad");
+      }
+    });
+
+    // Restore smile after a moment (only if not dead)
+    setTimeout(() => {
+      if (knockedOut) return; // Don't restore if robot is knocked out
+      document.querySelectorAll("svg.robot-svg .robot-sad").forEach(mouth => {
+        const originalD = mouth.dataset.originalD;
+        if (originalD) {
+          mouth.setAttribute("d", originalD);
+          mouth.classList.remove("robot-sad");
+          delete mouth.dataset.originalD; // Clear after restoring
+        }
+      });
+    }, 600);
   }
 
   function knockOut() {
@@ -113,6 +144,18 @@
         eye.style.display = "none";
         eye.parentNode.insertBefore(g, eye.nextSibling);
       });
+
+      // Make mouth a straight line (dead/neutral)
+      const mouth = svg.querySelector('path');
+      if (mouth) {
+        // Only save original if not already saved (to preserve the smile, not a temporary sad state)
+        if (!mouth.dataset.originalD) {
+          mouth.dataset.originalD = mouth.getAttribute("d");
+        }
+        mouth.setAttribute("d", "M 8 16 L 16 16");
+        mouth.classList.remove("robot-sad"); // Clear any sad state
+        mouth.classList.add("robot-dead-mouth");
+      }
 
       // Create drop zone indicator
       const batteryArea = document.createElementNS(SVG_NS, "circle");
@@ -189,6 +232,7 @@
   function makeDraggable(element) {
     let isDragging = false;
     let startX, startY, initialX, initialY;
+    let lastPositions = []; // Track positions for velocity calculation
 
     element.addEventListener("mousedown", startDrag);
     
@@ -200,6 +244,7 @@
       const rect = element.getBoundingClientRect();
       initialX = rect.left;
       initialY = rect.top;
+      lastPositions = [{ x: e.clientX, y: e.clientY, time: Date.now() }];
       
       document.addEventListener("mousemove", drag);
       document.addEventListener("mouseup", stopDrag);
@@ -210,8 +255,23 @@
       if (!isDragging) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      element.style.left = (initialX + dx) + "px";
-      element.style.top = (initialY + dy) + "px";
+      
+      // Calculate new position
+      let newX = initialX + dx;
+      let newY = initialY + dy;
+      
+      // Keep within viewport bounds
+      const batteryWidth = 40;
+      const batteryHeight = 60;
+      newX = Math.max(0, Math.min(newX, window.innerWidth - batteryWidth));
+      newY = Math.max(0, Math.min(newY, window.innerHeight - batteryHeight));
+      
+      element.style.left = newX + "px";
+      element.style.top = newY + "px";
+      
+      // Track last few positions for velocity
+      lastPositions.push({ x: e.clientX, y: e.clientY, time: Date.now() });
+      if (lastPositions.length > 5) lastPositions.shift();
     }
 
     function stopDrag(e) {
@@ -221,9 +281,129 @@
       document.removeEventListener("mousemove", drag);
       document.removeEventListener("mouseup", stopDrag);
       
-      // Check if dropped on robot
-      checkBatteryDrop(element, e.clientX, e.clientY);
+      // Calculate velocity
+      const velocity = calculateVelocity(lastPositions);
+      const speed = Math.sqrt(velocity.vx * velocity.vx + velocity.vy * velocity.vy);
+      
+      // If thrown fast enough, animate the throw
+      if (speed > 0.5) {
+        throwBattery(element, velocity, e.clientX, e.clientY);
+      } else {
+        // Just dropped - check if on robot
+        checkBatteryDrop(element, e.clientX, e.clientY);
+      }
     }
+    
+    function calculateVelocity(positions) {
+      if (positions.length < 2) return { vx: 0, vy: 0 };
+      const first = positions[0];
+      const last = positions[positions.length - 1];
+      const dt = (last.time - first.time) / 1000; // seconds
+      if (dt === 0) return { vx: 0, vy: 0 };
+      return {
+        vx: (last.x - first.x) / dt,
+        vy: (last.y - first.y) / dt
+      };
+    }
+  }
+
+  function throwBattery(battery, velocity, startX, startY) {
+    battery.style.cursor = "default";
+    const startTime = Date.now();
+    const maxDuration = 3000; // ms - max flight time
+    const batteryWidth = 40;
+    const batteryHeight = 60;
+    const bounceDamping = 0.6; // Energy loss on bounce
+    const friction = 0.97; // Friction per frame - slows battery smoothly
+    
+    // Current velocity (will change on bounce)
+    let vx = velocity.vx;
+    let vy = velocity.vy;
+    let lastX = startX;
+    let lastY = startY;
+    let lastTime = startTime;
+    
+    function animate() {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const dt = (now - lastTime) / 1000; // time since last frame in seconds
+      lastTime = now;
+      
+      // Apply friction smoothly
+      vx *= friction;
+      vy *= friction;
+      
+      // Stop if too much time has passed or velocity is very low
+      if (elapsed >= maxDuration || (Math.abs(vx) < 30 && Math.abs(vy) < 30)) {
+        battery.style.cursor = "grab";
+        checkBatteryDrop(battery, parseFloat(battery.style.left), parseFloat(battery.style.top));
+        return;
+      }
+      
+      // Calculate new position
+      let x = lastX + vx * dt;
+      let y = lastY + vy * dt;
+      
+      // Check for wall collisions and bounce
+      const maxX = window.innerWidth - batteryWidth;
+      const maxY = window.innerHeight - batteryHeight;
+      
+      // Left or right wall
+      if (x <= 0) {
+        x = 0;
+        vx = Math.abs(vx) * bounceDamping; // Reverse and dampen
+      } else if (x >= maxX) {
+        x = maxX;
+        vx = -Math.abs(vx) * bounceDamping; // Reverse and dampen
+      }
+      
+      // Top or bottom wall
+      if (y <= 0) {
+        y = 0;
+        vy = Math.abs(vy) * bounceDamping; // Reverse and dampen
+      } else if (y >= maxY) {
+        y = maxY;
+        vy = -Math.abs(vy) * bounceDamping; // Reverse and dampen
+      }
+      
+      lastX = x;
+      lastY = y;
+      
+      battery.style.left = x + "px";
+      battery.style.top = y + "px";
+      
+      // Rotate based on velocity
+      const totalTime = elapsed / 1000;
+      const rotation = (vx * totalTime * 0.5);
+      battery.style.transform = `rotate(${rotation}deg)`;
+      
+      // Check if hitting robot during flight
+      const robots = document.querySelectorAll("svg.robot-svg");
+      let hitRobot = false;
+      robots.forEach(svg => {
+        const rect = svg.getBoundingClientRect();
+        if (x >= rect.left - 30 && x <= rect.right + 30 &&
+            y >= rect.top - 30 && y <= rect.bottom + 30) {
+          hitRobot = true;
+        }
+      });
+      
+      if (hitRobot) {
+        battery.style.cursor = "grab";
+        battery.style.transition = "all 0.3s ease-out";
+        battery.style.opacity = "0";
+        battery.style.transform = "scale(0.5)";
+        setTimeout(() => {
+          battery.remove();
+          reviveRobot();
+        }, 300);
+        return;
+      }
+      
+      requestAnimationFrame(animate);
+    }
+    
+    animate();
   }
 
   function checkBatteryDrop(battery, x, y) {
@@ -264,6 +444,17 @@
       battery.style.display = "";
     });
     
+    // Restore mouth to smile
+    document.querySelectorAll("svg .robot-dead-mouth").forEach(mouth => {
+      const originalD = mouth.dataset.originalD;
+      if (originalD) {
+        mouth.setAttribute("d", originalD);
+        mouth.classList.remove("robot-dead-mouth");
+        mouth.classList.remove("robot-sad"); // Clear any sad state
+        delete mouth.dataset.originalD; // Clear so it can be saved fresh next time
+      }
+    });
+    
     // Remove restore areas
     document.querySelectorAll(".battery-restore-area").forEach(area => area.remove());
     
@@ -283,14 +474,18 @@
     // If knocked out, don't count clicks (need to restore battery)
     if (knockedOut) return;
 
-    // Show "ouch" on every click
-    showOuch(e);
-
     const now = Date.now();
     clickTimes.push(now);
     // Keep only clicks within the last 3 seconds
     clickTimes = clickTimes.filter(t => now - t < 3000);
-    if (clickTimes.length >= 10) knockOut();
+    
+    // Check if this will knock out the robot
+    if (clickTimes.length >= 10) {
+      knockOut();
+    } else {
+      // Only show "ouch" and sad face if not knocking out
+      showOuch(e);
+    }
   });
 
   // Add CSS animation for ouch and flying battery
