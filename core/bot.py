@@ -959,35 +959,61 @@ class BojanBot:
             return {"verdict": "unknown", "source": "", "query": query, "reason": "empty fact"}
 
         search_result = _web_search(query)
-        if not search_result or self._looks_like_failure(search_result):
-            return {"verdict": "unknown", "source": "", "query": query, "reason": "search failed"}
+        if not search_result:
+            print(f"[VERIFY] search empty for {query!r}", flush=True)
+            return {"verdict": "unknown", "source": "", "query": query, "reason": "web search returned nothing"}
+        if self._looks_like_failure(search_result):
+            print(f"[VERIFY] search flagged as failure: {search_result[:200]!r}", flush=True)
+            return {"verdict": "unknown", "source": "", "query": query, "reason": "web search looked like a failure"}
+        print(f"[VERIFY] search ok ({len(search_result)} chars) for {query!r}", flush=True)
 
         verify_prompt = [
             {"role": "system", "content": (
-                "You verify a user-asserted fact against web search results. Output strict JSON: "
-                '{"verdict": "confirmed"|"plausible"|"contradicted", "source": "<url or site name, or empty>"}. '
+                "You verify a user-asserted fact against web search results. "
+                "Be SKEPTICAL: when in doubt between 'plausible' and 'contradicted', pick 'contradicted'.\n\n"
+                "Output strict JSON: "
+                '{"verdict": "confirmed"|"plausible"|"contradicted", "source": "<url or site name, or empty>"}.\n'
                 "Rules:\n"
-                "- 'confirmed': results explicitly state the fact.\n"
-                "- 'plausible': results do NOT contradict the fact and the general topic/context matches.\n"
-                "- 'contradicted': results clearly state something incompatible with the fact.\n"
+                "- 'confirmed': results explicitly state the fact (a key phrase or number from the fact appears literally in results).\n"
+                "- 'contradicted': results name a DIFFERENT answer for the same question, OR state something incompatible "
+                "with the fact. Examples: fact says 'capital of France is Marseille' but results name Paris → contradicted. "
+                "Fact says 'Tesla born in 1066' but results say 1856 → contradicted. Fact attributes a quote/song/work to "
+                "the wrong person → contradicted.\n"
+                "- 'plausible': use ONLY when the topic matches and results neither confirm nor contradict (e.g. fact is "
+                "about a sub-detail not covered, like a specific patch version when results discuss the major release).\n"
                 "JSON only, no prose."
             )},
             {"role": "user", "content": f"Fact: {fact}\n\nSearch results:\n{search_result[:4000]}"},
         ]
+        vraw = ""
         try:
-            vresp = self.client.chat.completions.create(
-                model=self.model, messages=verify_prompt, temperature=0,
-            )
+            try:
+                vresp = self.client.chat.completions.create(
+                    model=self.model, messages=verify_prompt, temperature=0,
+                )
+            except Exception as exc:
+                msg_l = str(exc).lower()
+                is_tpd = ("429" in msg_l or "rate_limit" in msg_l) and ("tpd" in msg_l or "tokens per day" in msg_l)
+                if is_tpd and self.fallback_model:
+                    print(f"[VERIFY] primary model TPD-limited, falling back to {self.fallback_model}", flush=True)
+                    vresp = self.client.chat.completions.create(
+                        model=self.fallback_model, messages=verify_prompt, temperature=0,
+                    )
+                else:
+                    raise
             self._track_usage(vresp)
             vraw = vresp.choices[0].message.content or ""
             vm = re.search(r"\{.*\}", vraw, re.DOTALL)
             if not vm:
-                return {"verdict": "unknown", "source": "", "query": query, "reason": "no JSON in verdict"}
+                print(f"[VERIFY] no JSON in verdict response: {vraw[:200]!r}", flush=True)
+                return {"verdict": "unknown", "source": "", "query": query, "reason": "judge returned no JSON", "raw": vraw[:200]}
             vdata = json.loads(vm.group(0))
         except Exception as e:
-            return {"verdict": "unknown", "source": "", "query": query, "reason": str(e)}
+            print(f"[VERIFY] exception: {e!r}", flush=True)
+            return {"verdict": "unknown", "source": "", "query": query, "reason": f"judge call failed: {e}"}
 
         verdict = (vdata.get("verdict") or "unknown").lower()
+        print(f"[VERIFY] verdict={verdict} for {fact!r}", flush=True)
         return {
             "verdict": verdict,
             "source": (vdata.get("source") or "").strip(),

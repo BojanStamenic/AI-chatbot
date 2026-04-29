@@ -213,7 +213,8 @@ async function verify(div) {
     });
     const data = await res.json();
     setVerdict(div, data.verdict, data.source);
-    toast(`Verdict: ${data.verdict}` + (data.source ? ` (${data.source})` : ""),
+    const detail = data.verdict === "unknown" && data.reason ? ` — ${data.reason}` : (data.source ? ` (${data.source})` : "");
+    toast(`Verdict: ${data.verdict}${detail}`,
           data.verdict === "confirmed" ? "ok" : (data.verdict === "contradicted" ? "err" : ""));
   } catch (_) {
     toast("Verify failed", "err");
@@ -234,7 +235,11 @@ async function save(div, force) {
       body: JSON.stringify({ idx, ...fields, force: !!force }),
     });
     const data = await res.json();
-    if (data.ok) { toast("Saved", "ok"); load(); }
+    if (data.ok) {
+      const v = data.verdict ? ` (verdict: ${data.verdict})` : "";
+      toast("Saved" + v, data.verdict === "contradicted" ? "err" : "ok");
+      load();
+    }
     else if (res.status === 409 && data.verdict === "contradicted") {
       setVerdict(div, "contradicted", data.source);
       if (confirm("Web search CONTRADICTS this fact.\n\nSave anyway? (override verification)")) await save(div, true);

@@ -286,19 +286,20 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {"ok": False, "error": "Source is required. Use Verify to fill it in, or set force=true."})
                 return
 
+            verdict_info = {}
             if not force:
                 query = (fields["subtopic"] + " " + fields["fact"]).strip() or fields["fact"]
                 v = bot.verify_fact(fields["fact"], query)
+                verdict_info = {"verdict": v.get("verdict"), "source": v.get("source", "")}
                 if v["verdict"] == "contradicted":
                     self._send_json(409, {"ok": False, "verdict": v["verdict"],
                                           "source": v.get("source", ""), "error": "Web search contradicts this fact. Re-check or save with force=true."})
                     return
-                # Auto-fill source if verifier returned one and user didn't.
                 if v.get("source") and not fields["source"]:
                     fields["source"] = v["source"]
 
             ok = knowledge.update(idx, **fields)
-            self._send_json(200 if ok else 404, {"ok": ok})
+            self._send_json(200 if ok else 404, {"ok": ok, **verdict_info})
             return
 
         if self.path == "/api/knowledge/verify":
