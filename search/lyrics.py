@@ -193,6 +193,59 @@ def _scrape_tekstovi(artist: str, title: str) -> str:
     return ""
 
 
+def _scrape_genius(artist: str, title: str) -> str:
+    """Use genius.com's public search endpoint, then scrape the lyric containers."""
+    try:
+        q = f"{artist} {title}"
+        r = httpx.get(
+            "https://genius.com/api/search/multi",
+            params={"q": q, "per_page": 5},
+            timeout=8.0,
+            headers={"User-Agent": UA, "Accept": "application/json"},
+        )
+        print(f"[LYRICS] genius search status={r.status_code}", flush=True)
+        if r.status_code != 200:
+            return ""
+        data = r.json()
+        sections = (data.get("response") or {}).get("sections") or []
+        url = ""
+        for sec in sections:
+            for hit in sec.get("hits", []):
+                if hit.get("type") != "song":
+                    continue
+                res = hit.get("result") or {}
+                full = res.get("full_title") or ""
+                cand = res.get("url") or ""
+                if cand and _matches(full, artist, title):
+                    url = cand
+                    break
+            if url:
+                break
+        if not url:
+            print("[LYRICS] genius: no matching song hit", flush=True)
+            return ""
+        page = httpx.get(url, timeout=10.0, headers={"User-Agent": UA}, follow_redirects=True)
+        print(f"[LYRICS] genius fetched {url} status={page.status_code} len={len(page.text)}", flush=True)
+        if page.status_code != 200:
+            return ""
+        # Genius wraps lyrics in one or more <div data-lyrics-container="true">...</div>
+        chunks = re.findall(
+            r'<div[^>]*data-lyrics-container="true"[^>]*>(.*?)</div>',
+            page.text,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if not chunks:
+            return ""
+        joined = "\n".join(_strip_html(c) for c in chunks).strip()
+        joined = re.sub(r"\n{3,}", "\n\n", joined)
+        if len(joined) < 80:
+            return ""
+        return f"{joined}\n\nSource: {url}"
+    except Exception as e:
+        print(f"[LYRICS] genius exception: {e!r}", flush=True)
+        return ""
+
+
 def get_lyrics(artist: str, title: str) -> str:
     artist = (artist or "").strip()
     title = (title or "").strip()
@@ -205,6 +258,10 @@ def get_lyrics(artist: str, title: str) -> str:
         return f"{hit}\n\nSource: lyrics.ovh"
     hit = _scrape_tekstovi(artist, title)
     print(f"[LYRICS] tekstovi.net: {'hit ('+str(len(hit))+' chars)' if hit else 'miss'}", flush=True)
+    if hit:
+        return hit
+    hit = _scrape_genius(artist, title)
+    print(f"[LYRICS] genius.com: {'hit ('+str(len(hit))+' chars)' if hit else 'miss'}", flush=True)
     if hit:
         return hit
     return ""
