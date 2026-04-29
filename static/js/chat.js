@@ -24,8 +24,23 @@ function showWelcome() {
   card.className = "welcome";
   card.id = "welcomeCard";
   card.innerHTML =
-    '<div class="welcome-icon">' +
-      '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#fff"/></svg>' +
+    '<div class="welcome-icon" style="width:110px;height:110px;">' +
+      '<svg viewBox="0 0 24 24" class="robot-svg" style="width:100%;height:100%;">' +
+        '<line x1="12" y1="1" x2="12" y2="4" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>' +
+        '<circle cx="12" cy="1.3" r="1" fill="#fe2929"/>' +
+        '<rect x="4" y="4" width="16" height="15" rx="3" fill="#fff"/>' +
+        '<rect x="2.3" y="9" width="2" height="5" rx="0.5" fill="#fff"/>' +
+        '<rect x="19.7" y="9" width="2" height="5" rx="0.5" fill="#fff"/>' +
+        '<circle cx="9" cy="11" r="2.2" fill="#0d1017"/>' +
+        '<circle cx="15" cy="11" r="2.2" fill="#0d1017"/>' +
+        '<circle class="eye" data-cx="9" data-cy="11" cx="9" cy="11" r="1" fill="#ff7a2f"/>' +
+        '<circle class="eye" data-cx="15" data-cy="11" cx="15" cy="11" r="1" fill="#ff7a2f"/>' +
+        '<rect x="7" y="15" width="10" height="2.4" rx="0.5" fill="#0d1017"/>' +
+        '<line x1="9" y1="15.2" x2="9" y2="17.2" stroke="#fff" stroke-width="0.5"/>' +
+        '<line x1="11" y1="15.2" x2="11" y2="17.2" stroke="#fff" stroke-width="0.5"/>' +
+        '<line x1="13" y1="15.2" x2="13" y2="17.2" stroke="#fff" stroke-width="0.5"/>' +
+        '<line x1="15" y1="15.2" x2="15" y2="17.2" stroke="#fff" stroke-width="0.5"/>' +
+      '</svg>' +
     '</div>' +
     '<h2>Welcome to <span>BojanBot</span></h2>' +
     '<p>Your AI-powered assistant. Ask anything, generate images from text, get real-time info, or load files for analysis.</p>' +
