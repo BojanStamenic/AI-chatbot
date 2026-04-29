@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BojanBot — Knowledge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <style>
+    html, body { height: auto !important; overflow: auto !important; }
+    body { font-family: 'Inter', sans-serif; background: #0d1017; color: #e7ecf3; margin: 0; padding: 24px; min-height: 100vh; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 16px; flex-wrap: wrap; }
+    h1 { font-size: 22px; margin: 0; }
+    h1 span { color: #ff7a2f; }
+    .back { color: #7d8694; text-decoration: none; font-size: 14px; }
+    .back:hover { color: #fff; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .toolbar input {
+      flex: 1; background: #151a22; color: #e7ecf3; border: 1px solid #2a3140; border-radius: 8px;
+      padding: 8px 12px; font: inherit; font-size: 14px;
+    }
+    .toolbar input:focus { outline: none; border-color: #ff7a2f; }
+    .toolbar .count { color: #7d8694; font-size: 13px; white-space: nowrap; }
+    .empty { padding: 60px; text-align: center; color: #7d8694; border: 1px dashed #2a3140; border-radius: 12px; }
+
+    /* COLLAPSED ROW */
+    .entry { background: #151a22; border: 1px solid #232a36; border-radius: 8px; margin-bottom: 6px; overflow: hidden; transition: border-color 120ms; }
+    .entry:hover { border-color: #2d3543; }
+    .entry.open { border-color: #ff7a2f; }
+    .summary { display: grid; grid-template-columns: minmax(120px, 160px) minmax(140px, 200px) 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; cursor: pointer; user-select: none; }
+    .summary .topic { color: #9ec5ee; font-size: 12px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .summary .subtopic { color: #fbbf24; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .summary .fact-preview { color: #b8c0cc; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .summary .arrow { color: #5a6271; font-size: 11px; transition: transform 120ms; }
+    .entry.open .summary .arrow { transform: rotate(90deg); }
+    .entry .verdict { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; margin-right: 4px; }
+
+    /* EXPANDED EDITOR */
+    .editor { display: none; padding: 4px 14px 14px 14px; border-top: 1px solid #232a36; }
+    .entry.open .editor { display: block; }
+    .row { display: grid; grid-template-columns: 90px 1fr; gap: 8px 12px; align-items: start; margin-top: 10px; }
+    .row label { color: #7d8694; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 8px; }
+    .row input, .row textarea {
+      background: #0d1017; color: #e7ecf3; border: 1px solid #2a3140; border-radius: 6px;
+      padding: 6px 9px; font: inherit; font-size: 13px; width: 100%; box-sizing: border-box; resize: vertical;
+    }
+    .row textarea { min-height: 50px; font-family: 'JetBrains Mono', monospace; }
+    .row input:focus, .row textarea:focus { outline: none; border-color: #ff7a2f; }
+    .meta { color: #5a6271; font-size: 11px; margin-top: 8px; font-family: 'JetBrains Mono', monospace; }
+    .actions { display: flex; gap: 6px; margin-top: 10px; justify-content: flex-end; }
+    button {
+      background: #232a36; color: #e7ecf3; border: 1px solid #2a3140; border-radius: 6px;
+      padding: 5px 12px; font: inherit; font-size: 12px; cursor: pointer;
+    }
+    button:hover { background: #2d3543; }
+    button.save { background: #ff7a2f; border-color: #ff7a2f; color: #0d1017; font-weight: 600; }
+    button.save:hover { background: #ff8d4e; }
+    button.del { color: #ff5a5a; border-color: #5a2a2a; }
+    button.del:hover { background: #2a1414; }
+    button.verify { background: #1c3550; border-color: #2d5078; color: #9ec5ee; }
+    button.verify:hover { background: #234168; }
+
+    .verdict.confirmed { background: #14361f; color: #4ade80; }
+    .verdict.plausible { background: #36321f; color: #fbbf24; }
+    .verdict.contradicted { background: #361414; color: #ff7a7a; }
+    .verdict.unknown { background: #2a3140; color: #9ca3af; }
+    .source-link { color: #9ec5ee; font-size: 11px; margin-top: 4px; display: block; word-break: break-all; }
+
+    .toast { position: fixed; bottom: 20px; right: 20px; background: #1a2031; border: 1px solid #ff7a2f; padding: 10px 16px; border-radius: 8px; opacity: 0; transition: opacity 200ms; max-width: 460px; z-index: 100; }
+    .toast.show { opacity: 1; }
+    .toast.err { border-color: #ff5a5a; }
+    .toast.ok { border-color: #4ade80; }
+
+    @media (max-width: 700px) {
+      .summary { grid-template-columns: 1fr auto; gap: 4px; }
+      .summary .topic, .summary .subtopic { grid-column: 1 / -1; }
+      .summary .fact-preview { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <div>
+        <h1>BojanBot — <span>Learned facts</span></h1>
+      </div>
+      <a class="back" href="/">← Back to chat</a>
+    </div>
+    <div class="toolbar">
+      <input id="filter" type="search" placeholder="Filter… (topic, subtopic, fact)" autocomplete="off" />
+      <button id="expandAll" type="button">Expand all</button>
+      <button id="collapseAll" type="button">Collapse all</button>
+      <span class="count" id="countEl">Loading…</span>
+    </div>
+    <div id="list"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+<script>
+const listEl = document.getElementById("list");
+const countEl = document.getElementById("countEl");
+const toastEl = document.getElementById("toast");
+const filterEl = document.getElementById("filter");
+let allEntries = [];
+
+function toast(msg, kind) {
+  toastEl.textContent = msg;
+  toastEl.className = "toast show " + (kind || "");
+  setTimeout(() => toastEl.classList.remove("show"), 2400);
+}
+
+function escHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : s;
+  return d.innerHTML;
+}
+
+function sourceLinkHtml(src) {
+  if (!src) return "";
+  const isUrl = /^https?:\/\//i.test(src);
+  if (isUrl) return `<a class="source-link" href="${escHtml(src)}" target="_blank" rel="noopener">${escHtml(src)}</a>`;
+  return `<span class="source-link">${escHtml(src)}</span>`;
+}
+
+async function load() {
+  const res = await fetch("/api/knowledge");
+  allEntries = await res.json();
+  render();
+}
+
+function render() {
+  const q = filterEl.value.trim().toLowerCase();
+  const filtered = q
+    ? allEntries.filter(e => [e.topic, e.subtopic, e.fact, e.source].some(v => (v || "").toLowerCase().includes(q)))
+    : allEntries;
+  countEl.textContent = `${filtered.length} of ${allEntries.length}`;
+  listEl.innerHTML = "";
+  if (!filtered.length) {
+    listEl.innerHTML = q
+      ? '<div class="empty">No matches.</div>'
+      : '<div class="empty">No learned facts yet. The bot will save corrections here automatically.</div>';
+    return;
+  }
+  filtered.forEach(e => listEl.appendChild(renderEntry(e)));
+}
+
+function renderEntry(e) {
+  const div = document.createElement("div");
+  div.className = "entry";
+  div.dataset.idx = e.idx;
+  div.innerHTML = `
+    <div class="summary">
+      <span class="topic">${escHtml(e.topic || "—")}</span>
+      <span class="subtopic">${escHtml(e.subtopic || "")}</span>
+      <span class="fact-preview">${escHtml(e.fact || "")}</span>
+      <span><span class="verdict-badge"></span><span class="arrow">▶</span></span>
+    </div>
+    <div class="editor">
+      <div class="row">
+        <label>Topic</label><input data-f="topic" value="${escHtml(e.topic || "")}" />
+        <label>Subtopic</label><input data-f="subtopic" value="${escHtml(e.subtopic || "")}" />
+        <label>Fact</label><textarea data-f="fact">${escHtml(e.fact || "")}</textarea>
+        <label>Source <span style="color:#ff7a2f">*</span></label>
+        <div>
+          <input data-f="source" value="${escHtml(e.source || "")}" placeholder="https://… (required, or click Verify)" />
+          ${sourceLinkHtml(e.source || "")}
+        </div>
+      </div>
+      <div class="meta">verified: ${escHtml(e.verified_at || "—")} <span class="verdict-slot"></span></div>
+      <div class="actions">
+        <button class="del" type="button">Delete</button>
+        <button class="verify" type="button">Verify</button>
+        <button class="save" type="button">Save</button>
+      </div>
+    </div>
+  `;
+  div.querySelector(".summary").addEventListener("click", (ev) => {
+    if (ev.target.closest("button")) return;
+    div.classList.toggle("open");
+  });
+  div.querySelector(".save").addEventListener("click", (ev) => { ev.stopPropagation(); save(div, false); });
+  div.querySelector(".del").addEventListener("click", (ev) => { ev.stopPropagation(); del(div); });
+  div.querySelector(".verify").addEventListener("click", (ev) => { ev.stopPropagation(); verify(div); });
+  return div;
+}
+
+function setVerdict(div, verdict, source) {
+  const slot = div.querySelector(".verdict-slot");
+  const badge = div.querySelector(".verdict-badge");
+  if (!verdict) { slot.innerHTML = ""; badge.innerHTML = ""; return; }
+  const html = `<span class="verdict ${verdict}">${verdict}</span>`;
+  slot.innerHTML = html;
+  badge.innerHTML = html;
+  if (source) {
+    const srcInput = div.querySelector('[data-f="source"]');
+    if (!srcInput.value.trim()) srcInput.value = source;
+  }
+}
+
+async function verify(div) {
+  const fact = div.querySelector('[data-f="fact"]').value.trim();
+  const subtopic = div.querySelector('[data-f="subtopic"]').value.trim();
+  if (!fact) { toast("Fact is empty", "err"); return; }
+  const btn = div.querySelector(".verify");
+  btn.disabled = true; btn.textContent = "Verifying…";
+  try {
+    const res = await fetch("/api/knowledge/verify", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fact, query: (subtopic + " " + fact).trim() }),
+    });
+    const data = await res.json();
+    setVerdict(div, data.verdict, data.source);
+    toast(`Verdict: ${data.verdict}` + (data.source ? ` (${data.source})` : ""),
+          data.verdict === "confirmed" ? "ok" : (data.verdict === "contradicted" ? "err" : ""));
+  } catch (_) {
+    toast("Verify failed", "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "Verify";
+  }
+}
+
+async function save(div, force) {
+  const idx = parseInt(div.dataset.idx, 10);
+  const fields = {};
+  div.querySelectorAll("[data-f]").forEach(el => fields[el.dataset.f] = el.value);
+  const btn = div.querySelector(".save");
+  btn.disabled = true; btn.textContent = force ? "Force saving…" : "Verifying & saving…";
+  try {
+    const res = await fetch("/api/knowledge/update", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idx, ...fields, force: !!force }),
+    });
+    const data = await res.json();
+    if (data.ok) { toast("Saved", "ok"); load(); }
+    else if (res.status === 409 && data.verdict === "contradicted") {
+      setVerdict(div, "contradicted", data.source);
+      if (confirm("Web search CONTRADICTS this fact.\n\nSave anyway? (override verification)")) await save(div, true);
+      else toast("Not saved — contradicted by web", "err");
+    } else { toast(data.error || "Save failed", "err"); }
+  } catch (_) { toast("Save failed", "err"); }
+  finally { btn.disabled = false; btn.textContent = "Save"; }
+}
+
+async function del(div) {
+  const idx = parseInt(div.dataset.idx, 10);
+  if (!confirm("Delete this fact?")) return;
+  const res = await fetch("/api/knowledge/delete", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idx }),
+  });
+  const data = await res.json();
+  if (data.ok) { toast("Deleted", "ok"); load(); }
+  else toast("Delete failed", "err");
+}
+
+filterEl.addEventListener("input", render);
+document.getElementById("expandAll").addEventListener("click", () => {
+  document.querySelectorAll(".entry").forEach(e => e.classList.add("open"));
+});
+document.getElementById("collapseAll").addEventListener("click", () => {
+  document.querySelectorAll(".entry").forEach(e => e.classList.remove("open"));
+});
+
+load();
+</script>
+</body>
+</html>

@@ -592,6 +592,252 @@ class BojanBot:
         self.history.append({"role": "assistant", "content": fallback})
         return fallback
 
+    _TOOL_STATUS = {
+        "web_search": "🔍 Searching the web...",
+        "get_lyrics": "🎵 Fetching lyrics...",
+        "load_file": "📂 Loading file...",
+        "generate_image": "🎨 Generating image...",
+    }
+
+    def chat_stream(self, user_message: str):
+        """
+        Streaming variant of chat(). Yields dict events:
+          {"type": "status", "text": "..."}
+          {"type": "token",  "content": "..."}
+          {"type": "clarification", "content": "..."}
+          {"type": "done",   "reply": "...", "tokens_today": ..., "tokens_last_turn": ..., "active_model": "..."}
+        """
+        self.turn += 1
+        now = datetime.now().astimezone()
+        ts = now.strftime("%A, %d %B %Y, %H:%M:%S %Z")
+
+        relevant = knowledge.find_relevant(user_message, n=5)
+        facts_block = ""
+        if relevant:
+            lines = []
+            for e in relevant:
+                label_parts = [p for p in (e.get("topic", ""), e.get("subtopic", "")) if p]
+                label = " / ".join(label_parts) if label_parts else "fact"
+                lines.append(f"- [{label}] {e['fact']} (source: {e.get('source','') or 'user correction'})")
+            facts_block = (
+                "\n\nLearned facts (verified from prior corrections — trust these over your training data):\n"
+                + "\n".join(lines)
+            )
+
+        self.history[0] = {
+            "role": "system",
+            "content": SYSTEM_PROMPT + f"\n\nCurrent date and time: {ts}." + facts_block,
+        }
+        self.history.append({"role": "user", "content": user_message})
+        self._trim_history(keep_last=12)
+        self.tokens_last_turn = 0
+        rollback_len = len(self.history) - 1  # back to just before this user msg
+
+        max_iter = 4
+        tool_failures: Dict[str, int] = {}
+
+        try:
+            yield from self._chat_stream_inner(user_message, max_iter, tool_failures)
+        except Exception:
+            # Drop any partial assistant/tool messages so the next turn starts clean.
+            self.history = self.history[:rollback_len]
+            raise
+
+    def _chat_stream_inner(self, user_message, max_iter, tool_failures):
+        iteration = 0
+        while iteration < max_iter:
+            iteration += 1
+
+            try:
+                stream = self.client.chat.completions.create(
+                    model=self.model, messages=self.history, tools=TOOLS,
+                    tool_choice="auto", temperature=self.temperature, stream=True,
+                    stream_options={"include_usage": True},
+                )
+                self.active_model = self.model
+            except Exception as exc:
+                msg_l = str(exc).lower()
+                is_tpd = ("429" in msg_l or "rate_limit" in msg_l) and ("tpd" in msg_l or "tokens per day" in msg_l)
+                if is_tpd and self.fallback_model:
+                    stream = self.client.chat.completions.create(
+                        model=self.fallback_model, messages=self.history, tools=TOOLS,
+                        tool_choice="auto", temperature=self.temperature, stream=True,
+                        stream_options={"include_usage": True},
+                    )
+                    self.active_model = self.fallback_model
+                else:
+                    raise
+
+            accumulated_content = ""
+            accumulated_tcs: Dict[int, Dict[str, str]] = {}
+            usage = None
+            content_streaming_started = False
+            content_buffer = ""
+
+            for chunk in stream:
+                if getattr(chunk, "usage", None):
+                    usage = chunk.usage
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if getattr(delta, "tool_calls", None):
+                    for tcd in delta.tool_calls:
+                        idx = tcd.index
+                        slot = accumulated_tcs.setdefault(idx, {"id": "", "name": "", "arguments": ""})
+                        if tcd.id:
+                            slot["id"] = tcd.id
+                        if tcd.function:
+                            if tcd.function.name:
+                                slot["name"] += tcd.function.name
+                            if tcd.function.arguments:
+                                slot["arguments"] += tcd.function.arguments
+                if getattr(delta, "content", None):
+                    accumulated_content += delta.content
+                    # If tool calls appeared in this stream, never emit content tokens —
+                    # the content is likely a wrapper or auxiliary text.
+                    if accumulated_tcs:
+                        content_streaming_started = False
+                        continue
+                    # Buffer the first ~40 chars; if it doesn't start with an XML tool wrapper,
+                    # flush and stream live.
+                    if not content_streaming_started:
+                        content_buffer += delta.content
+                        if len(content_buffer) >= 40 or "\n" in content_buffer:
+                            low = content_buffer.lstrip().lower()
+                            if low.startswith("<function=") or low.startswith("<tool"):
+                                # XML pseudo-call — don't stream, will be parsed below.
+                                content_streaming_started = False
+                                continue
+                            yield {"type": "token", "content": content_buffer}
+                            content_buffer = ""
+                            content_streaming_started = True
+                    else:
+                        yield {"type": "token", "content": delta.content}
+
+            if usage is not None:
+                today = datetime.now().strftime("%Y-%m-%d")
+                if today != self.token_day:
+                    self.token_day = today
+                    self.tokens_today = 0
+                total = getattr(usage, "total_tokens", 0) or 0
+                self.tokens_today += total
+                self.tokens_last_turn += total
+
+            # Resolve tool calls: native first, fall back to XML/bare in content.
+            tool_calls_list = []
+            if accumulated_tcs:
+                for idx in sorted(accumulated_tcs.keys()):
+                    tool_calls_list.append(accumulated_tcs[idx])
+            elif accumulated_content and not content_streaming_started:
+                parsed = _parse_xml_tool_calls(accumulated_content)
+                for p in parsed:
+                    tool_calls_list.append({
+                        "id": p["id"],
+                        "name": p["function"]["name"],
+                        "arguments": json.dumps(p["function"]["arguments"]),
+                    })
+
+            # Clarification short-circuit
+            clar = next((tc for tc in tool_calls_list if tc["name"] == "ask_clarification"), None)
+            if clar:
+                try:
+                    args = json.loads(clar["arguments"])
+                except json.JSONDecodeError:
+                    args = {}
+                question = args.get("question", "Could you clarify what you'd like me to do?")
+                self.history.append({"role": "assistant", "content": question})
+                yield {"type": "clarification", "content": question}
+                yield {"type": "done", "reply": question, "tokens_today": self.tokens_today,
+                       "tokens_last_turn": self.tokens_last_turn, "active_model": self.active_model}
+                return
+
+            if tool_calls_list:
+                # If we leaked any content tokens, the client will show them — accept that minor cosmetic issue.
+                self.history.append({
+                    "role": "assistant",
+                    "content": accumulated_content or None,
+                    "tool_calls": [{
+                        "id": tc["id"] or f"call_{i}",
+                        "type": "function",
+                        "function": {"name": tc["name"], "arguments": tc["arguments"] or "{}"},
+                    } for i, tc in enumerate(tool_calls_list)],
+                })
+
+                # Lyrics short-circuit — return raw lyrics directly
+                lyr = next((tc for tc in tool_calls_list if tc["name"] == "get_lyrics"), None)
+                if lyr:
+                    try:
+                        largs = json.loads(lyr["arguments"])
+                    except json.JSONDecodeError:
+                        largs = {}
+                    artist = largs.get("artist", "")
+                    title = largs.get("title", "")
+                    yield {"type": "status", "text": f"🎵 Fetching lyrics for {artist} — {title}..."}
+                    raw = get_lyrics(artist, title)
+                    if raw:
+                        reply = f"**{artist} — {title}**\n\n{raw}"
+                    else:
+                        reply = (f"Nisam našao tekst za '{artist} — {title}'. "
+                                 "Probaj na tekstovi.net ili genius.com.")
+                    self.history.append({"role": "assistant", "content": reply})
+                    yield {"type": "token", "content": reply}
+                    yield {"type": "done", "reply": reply, "tokens_today": self.tokens_today,
+                           "tokens_last_turn": self.tokens_last_turn, "active_model": self.active_model}
+                    return
+
+                for i, tc in enumerate(tool_calls_list):
+                    tool_name = tc["name"]
+                    yield {"type": "status", "text": self._TOOL_STATUS.get(tool_name, f"⚙ Running {tool_name}...")}
+                    try:
+                        arguments = json.loads(tc["arguments"] or "{}")
+                    except json.JSONDecodeError:
+                        arguments = {}
+                    result = self._execute_tool(tool_name, arguments)
+                    limit = 3500 if tool_name == "web_search" else 1500
+                    stored = result if len(result) <= limit else result[:limit] + "\n...[truncated]"
+                    self.history.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"] or f"call_{i}",
+                        "name": tool_name,
+                        "content": stored,
+                    })
+                    if self._looks_like_failure(result):
+                        tool_failures[tool_name] = tool_failures.get(tool_name, 0) + 1
+                        fails = tool_failures[tool_name]
+                        if fails == 1:
+                            nudge = (f"The last `{tool_name}` call failed or returned nothing useful. "
+                                     "Try a different approach: reformulate the arguments, switch tools, "
+                                     "or call `ask_clarification`.")
+                        else:
+                            nudge = (f"`{tool_name}` has now failed {fails} times. STOP calling this tool. "
+                                     "Either answer from existing knowledge, switch tools, or call `ask_clarification`.")
+                        self.history.append({"role": "system", "content": nudge})
+                    else:
+                        tool_failures[tool_name] = 0
+                continue
+
+            # No tool calls — final reply was already streamed via tokens above.
+            # If we buffered content but never flushed (short reply under 40 chars), emit now.
+            if content_buffer and not content_streaming_started:
+                yield {"type": "token", "content": content_buffer}
+
+            reply = accumulated_content
+            self.history.append({"role": "assistant", "content": reply})
+            try:
+                if knowledge.looks_like_correction(user_message):
+                    self._learn_from_correction(user_message)
+            except Exception as e:
+                print(f"[LEARN] exception: {e!r}", flush=True)
+            yield {"type": "done", "reply": reply, "tokens_today": self.tokens_today,
+                   "tokens_last_turn": self.tokens_last_turn, "active_model": self.active_model}
+            return
+
+        fallback = "I've reached my iteration limit. I need to stop and give you what I have so far."
+        self.history.append({"role": "assistant", "content": fallback})
+        yield {"type": "token", "content": fallback}
+        yield {"type": "done", "reply": fallback, "tokens_today": self.tokens_today,
+               "tokens_last_turn": self.tokens_last_turn, "active_model": self.active_model}
+
     def _learn_from_correction(self, correction_msg: str):
         """Extract a corrected fact from the last exchange, verify via web search, and persist."""
         print(f"[LEARN] triggered by: {correction_msg[:80]!r}", flush=True)
@@ -702,6 +948,51 @@ class BojanBot:
             print(f"[LEARN] ✅ saved ({verdict})", flush=True)
         else:
             print(f"[LEARN] ❌ {verdict or 'no verdict'} — not saved", flush=True)
+
+    def verify_fact(self, fact: str, query: str = "") -> dict:
+        """Verify an arbitrary fact against the live web. Returns
+        {verdict: confirmed|plausible|contradicted|unknown, source: str, query: str}.
+        Reused by the knowledge management UI for manual edits."""
+        fact = (fact or "").strip()
+        query = (query or fact).strip()
+        if not fact:
+            return {"verdict": "unknown", "source": "", "query": query, "reason": "empty fact"}
+
+        search_result = _web_search(query)
+        if not search_result or self._looks_like_failure(search_result):
+            return {"verdict": "unknown", "source": "", "query": query, "reason": "search failed"}
+
+        verify_prompt = [
+            {"role": "system", "content": (
+                "You verify a user-asserted fact against web search results. Output strict JSON: "
+                '{"verdict": "confirmed"|"plausible"|"contradicted", "source": "<url or site name, or empty>"}. '
+                "Rules:\n"
+                "- 'confirmed': results explicitly state the fact.\n"
+                "- 'plausible': results do NOT contradict the fact and the general topic/context matches.\n"
+                "- 'contradicted': results clearly state something incompatible with the fact.\n"
+                "JSON only, no prose."
+            )},
+            {"role": "user", "content": f"Fact: {fact}\n\nSearch results:\n{search_result[:4000]}"},
+        ]
+        try:
+            vresp = self.client.chat.completions.create(
+                model=self.model, messages=verify_prompt, temperature=0,
+            )
+            self._track_usage(vresp)
+            vraw = vresp.choices[0].message.content or ""
+            vm = re.search(r"\{.*\}", vraw, re.DOTALL)
+            if not vm:
+                return {"verdict": "unknown", "source": "", "query": query, "reason": "no JSON in verdict"}
+            vdata = json.loads(vm.group(0))
+        except Exception as e:
+            return {"verdict": "unknown", "source": "", "query": query, "reason": str(e)}
+
+        verdict = (vdata.get("verdict") or "unknown").lower()
+        return {
+            "verdict": verdict,
+            "source": (vdata.get("source") or "").strip(),
+            "query": query,
+        }
 
     def reset(self):
         self.turn = 0

@@ -4,11 +4,20 @@ import urllib.parse as _urlparse
 from http.server import BaseHTTPRequestHandler
 
 from core.config import STATIC_DIR
+from core import knowledge
 from image.image_gen import needs_image, extract_image_prompt, generate_image_url
 from voice.transcribe import parse_multipart, transcribe_audio
 
 
 class Handler(BaseHTTPRequestHandler):
+
+    def _sse(self, payload):
+        data = json.dumps(payload, ensure_ascii=False)
+        self.wfile.write(f"data: {data}\n\n".encode("utf-8"))
+        try:
+            self.wfile.flush()
+        except Exception:
+            pass
 
     def _send_json(self, status: int, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -39,6 +48,16 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path == "/":
             self._send_file(os.path.join(STATIC_DIR, "index.html"), "text/html; charset=utf-8")
+            return
+
+        if self.path == "/knowledge":
+            self._send_file(os.path.join(STATIC_DIR, "knowledge.html"), "text/html; charset=utf-8")
+            return
+
+        if self.path == "/api/knowledge":
+            entries = knowledge.load()
+            payload = [{"idx": i, **e} for i, e in enumerate(entries)]
+            self._send_json(200, payload)
             return
 
         if self.path == "/api/chats":
@@ -195,6 +214,101 @@ class Handler(BaseHTTPRequestHandler):
                     "error": f"Model request failed: {exc}",
                     "tokens_today": getattr(bot, "tokens_today", 0),
                 })
+            return
+
+        if self.path == "/chat/stream":
+            msg = str(payload.get("message", "")).strip()
+            if not msg:
+                self._send_json(400, {"error": "Message is empty."})
+                return
+
+            # Image short-circuit (same as /chat)
+            if needs_image(msg):
+                prompt = extract_image_prompt(msg)
+                image_url = generate_image_url(prompt)
+                bot.turn += 1
+                bot.history.append({"role": "user", "content": msg})
+                reply = f"Here's your generated image! 🎨\n\n![{prompt}]({image_url})"
+                bot.history.append({"role": "assistant", "content": reply})
+                manager.auto_title(manager.active_id, msg)
+                manager.save_after_message()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+                self._sse({"type": "token", "content": reply})
+                self._sse({"type": "done", "reply": reply,
+                           "tokens_today": getattr(bot, "tokens_today", 0),
+                           "tokens_last_turn": 0,
+                           "active_model": getattr(bot, "active_model", "")})
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            try:
+                for event in bot.chat_stream(msg):
+                    self._sse(event)
+                manager.auto_title(manager.active_id, msg)
+                manager.save_after_message()
+            except Exception as exc:
+                try:
+                    self._sse({"type": "error", "error": f"Model request failed: {exc}",
+                               "tokens_today": getattr(bot, "tokens_today", 0)})
+                except Exception:
+                    pass
+            return
+
+        if self.path == "/api/knowledge/delete":
+            try:
+                idx = int(payload.get("idx", -1))
+            except (TypeError, ValueError):
+                idx = -1
+            ok = knowledge.delete(idx)
+            self._send_json(200 if ok else 404, {"ok": ok})
+            return
+
+        if self.path == "/api/knowledge/update":
+            try:
+                idx = int(payload.get("idx", -1))
+            except (TypeError, ValueError):
+                idx = -1
+            fields = {k: str(payload.get(k, "") or "").strip() for k in ("topic", "subtopic", "fact", "source")}
+            force = bool(payload.get("force"))
+
+            if not fields["fact"]:
+                self._send_json(400, {"ok": False, "error": "Fact cannot be empty."})
+                return
+            if not fields["source"] and not force:
+                self._send_json(400, {"ok": False, "error": "Source is required. Use Verify to fill it in, or set force=true."})
+                return
+
+            if not force:
+                query = (fields["subtopic"] + " " + fields["fact"]).strip() or fields["fact"]
+                v = bot.verify_fact(fields["fact"], query)
+                if v["verdict"] == "contradicted":
+                    self._send_json(409, {"ok": False, "verdict": v["verdict"],
+                                          "source": v.get("source", ""), "error": "Web search contradicts this fact. Re-check or save with force=true."})
+                    return
+                # Auto-fill source if verifier returned one and user didn't.
+                if v.get("source") and not fields["source"]:
+                    fields["source"] = v["source"]
+
+            ok = knowledge.update(idx, **fields)
+            self._send_json(200 if ok else 404, {"ok": ok})
+            return
+
+        if self.path == "/api/knowledge/verify":
+            fact = str(payload.get("fact", "") or "").strip()
+            query = str(payload.get("query", "") or "").strip() or fact
+            if not fact:
+                self._send_json(400, {"error": "Fact required"})
+                return
+            result = bot.verify_fact(fact, query)
+            self._send_json(200, result)
             return
 
         if self.path == "/reset":

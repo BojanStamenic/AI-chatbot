@@ -91,38 +91,7 @@ async function sendMessage() {
 
   try {
     const enriched = await enrichWithWeather(text);
-    
-    // If it's likely a search, update status after initial request
-    if (operation.type === 'search') {
-      setTimeout(() => updateTypingStatus('🔍 Analyzing results...'), 2000);
-    }
-    
-    const data = await postJSON("/chat", { message: enriched });
-    hideTyping();
-    if (data.error) {
-      addMsg(data.error, "error", false, false);
-      if (typeof data.tokens_today === "number") {
-        const el = document.getElementById("tokenStat");
-        if (el) el.textContent = data.tokens_today.toLocaleString();
-      }
-    } else {
-      addMsg(data.reply, "bot", true, false);
-      if (typeof data.tokens_today === "number") {
-        const el = document.getElementById("tokenStat");
-        if (el) el.textContent = data.tokens_today.toLocaleString()
-          + (data.tokens_last_turn ? " (+" + data.tokens_last_turn + ")" : "");
-      }
-      if (data.active_model) {
-        const m = document.getElementById("modelStat");
-        if (m) {
-          const short = data.active_model.replace("llama-", "").replace("-versatile","").replace("-instant","");
-          m.textContent = short;
-          m.title = data.active_model;
-          m.style.color = data.active_model.includes("8b") ? "#ff9a3c" : "";
-        }
-      }
-      if (ttsEnabled) speak(data.reply);
-    }
+    await streamChat(enriched);
     loadChatList();
   } catch (_) {
     hideTyping();
@@ -130,6 +99,108 @@ async function sendMessage() {
   } finally {
     sendBtn.disabled = false;
     msgInput.focus();
+  }
+}
+
+async function streamChat(message) {
+  const resp = await fetch("/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message })
+  });
+  if (!resp.ok || !resp.body) {
+    hideTyping();
+    addMsg("Stream request failed.", "error", false, false);
+    return;
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let botDiv = null;
+  let botBody = null;
+  let fullText = "";
+
+  function ensureBotMsg() {
+    if (botDiv) return;
+    hideTyping();
+    hideWelcome();
+    botDiv = document.createElement("div");
+    botDiv.className = "msg bot";
+    botDiv.style.animation = "none";
+    const label = document.createElement("span");
+    label.className = "msg-label";
+    label.textContent = "BojanBot";
+    botDiv.appendChild(label);
+    botBody = document.createElement("div");
+    botDiv.appendChild(botBody);
+    chatEl.appendChild(botDiv);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) !== -1) {
+      const eventBlock = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      let data = "";
+      for (const line of eventBlock.split("\n")) {
+        if (line.startsWith("data: ")) data += line.slice(6);
+      }
+      if (!data) continue;
+      let payload;
+      try { payload = JSON.parse(data); } catch (_) { continue; }
+
+      if (payload.type === "status") {
+        updateTypingStatus(payload.text);
+      } else if (payload.type === "token") {
+        ensureBotMsg();
+        fullText += payload.content;
+        if (botBody) {
+          botBody.innerHTML = renderMarkdown(fullText);
+          chatEl.scrollTop = chatEl.scrollHeight;
+        }
+      } else if (payload.type === "clarification") {
+        hideTyping();
+        addMsg(payload.content, "bot", true, false);
+      } else if (payload.type === "error") {
+        hideTyping();
+        addMsg(payload.error || "Model request failed.", "error", false, false);
+        if (typeof payload.tokens_today === "number") {
+          const el = document.getElementById("tokenStat");
+          if (el) el.textContent = payload.tokens_today.toLocaleString();
+        }
+      } else if (payload.type === "done") {
+        hideTyping();
+        // Apply site-actions on the full text and rerender clean
+        if (botBody && typeof applySiteActions === "function") {
+          const cleaned = applySiteActions(fullText);
+          if (cleaned == null || cleaned === "") {
+            if (botDiv) botDiv.remove();
+          } else {
+            botBody.innerHTML = renderMarkdown(cleaned);
+          }
+        }
+        if (typeof payload.tokens_today === "number") {
+          const el = document.getElementById("tokenStat");
+          if (el) el.textContent = payload.tokens_today.toLocaleString()
+            + (payload.tokens_last_turn ? " (+" + payload.tokens_last_turn + ")" : "");
+        }
+        if (payload.active_model) {
+          const m = document.getElementById("modelStat");
+          if (m) {
+            const short = payload.active_model.replace("llama-", "").replace("-versatile","").replace("-instant","");
+            m.textContent = short;
+            m.title = payload.active_model;
+            m.style.color = payload.active_model.includes("8b") ? "#ff9a3c" : "";
+          }
+        }
+        if (ttsEnabled && fullText) speak(fullText);
+      }
+    }
   }
 }
 
