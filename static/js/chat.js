@@ -90,6 +90,24 @@ function addMsg(text, type, useMarkdown, noAnim) {
     body.textContent = text;
   }
   div.appendChild(body);
+
+  if (type === "bot") {
+    const actions = document.createElement("div");
+    actions.className = "msg-actions";
+    const pinBtn = document.createElement("button");
+    pinBtn.className = "msg-action-btn";
+    pinBtn.type = "button";
+    pinBtn.innerHTML = "📌 Pin as sticky";
+    pinBtn.title = "Stick this response on your screen";
+    pinBtn.addEventListener("click", function () {
+      if (typeof window.createStickyFromText === "function") {
+        window.createStickyFromText(body.innerHTML || body.textContent || text);
+      }
+    });
+    actions.appendChild(pinBtn);
+    div.appendChild(actions);
+  }
+
   chatEl.appendChild(div);
   chatEl.scrollTop = chatEl.scrollHeight;
   return div;

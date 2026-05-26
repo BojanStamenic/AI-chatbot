@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/css/chat.css" />
   <link rel="stylesheet" href="/css/voice.css" />
   <link rel="stylesheet" href="/css/widget.css" />
+  <link rel="stylesheet" href="/css/sticky.css" />
 </head>
 <body>
 
@@ -86,6 +87,11 @@
         <button class="btn btn-ghost" id="clearBtn" title="Reset this chat">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
           Reset
+        </button>
+        <!-- notes board toggle -->
+        <button class="btn btn-ghost" id="notesToggle" title="Notes board">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12a0 0 0 0 1 0 0H4z"/><polyline points="16 4 16 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+          Notes <span class="notes-count" id="notesCount">0</span>
         </button>
         <!-- widget toggle -->
         <button class="btn btn-ghost" id="widgetToggle" title="Widget mode">
@@ -268,6 +274,7 @@
 <script src="/js/weather.js"></script>
 <script src="/js/widget.js"></script>
 <script src="/js/site_control.js"></script>
+<script src="/js/sticky.js"></script>
 <script src="/js/app.js"></script>
 
 </body>

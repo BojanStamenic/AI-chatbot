@@ -97,6 +97,50 @@ const SITE_ACTIONS = {
     });
   },
 
+  setTextColor(v) {
+    const root = document.getElementById("fakeSite");
+    if (!root) return;
+    let target = null, color = null;
+    if (typeof v === "string") { color = v; }
+    else if (v && typeof v === "object") { color = v.color; target = v.target; }
+    if (!color) return;
+    const map = {
+      hero: ".fake-hero, .fake-hero h1, .fake-hero p",
+      heroTitle: ".fake-hero h1",
+      heroSubtitle: ".fake-hero p",
+      nav: ".fake-nav, .fake-nav-brand, .fake-nav-links a",
+      header: ".fake-nav, .fake-nav-brand, .fake-nav-links a",
+      features: ".fake-features, .fake-feature h3, .fake-feature p",
+      cta: ".fake-cta, .fake-cta h2, .fake-cta p",
+      footer: ".fake-footer, .fake-footer p",
+      all: null,
+    };
+    if (!target || target === "all") {
+      root.style.color = color;
+      root.querySelectorAll("h1,h2,h3,h4,p,a,span,div").forEach(el => {
+        if (!el.closest(".fake-hero-btn, .fake-nav-cta")) el.style.color = color;
+      });
+      return;
+    }
+    const sel = map[target];
+    if (!sel) return;
+    root.querySelectorAll(sel).forEach(el => { el.style.color = color; });
+  },
+
+  setBgColor(v) {
+    const root = document.getElementById("fakeSite");
+    if (!root || !v) return;
+    root.style.background = String(v);
+  },
+
+  setAccentColor(v) {
+    const root = document.getElementById("fakeSite");
+    if (!root || !v) return;
+    const c = String(v);
+    root.style.setProperty("--site-accent", c);
+    root.querySelectorAll(".fake-hero-btn, .fake-nav-cta").forEach(b => { b.style.background = c; });
+  },
+
   resetSite() { location.reload(); },
 };
 

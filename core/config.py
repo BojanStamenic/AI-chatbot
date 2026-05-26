@@ -82,7 +82,13 @@ Available actions:
 - setHeroTitle(text), setHeroSubtitle(text), setHeroButton(text)
 - setNavBrand(text), setNavCta(text)
 - setCtaTitle(text), setCtaText(text), setFooter(text)
-- setTheme(name) — one of: "dark", "light", "purple", "green", "red"
+- setTheme(name) — one of: "dark", "light", "purple", "green", "red" (smoothly animated)
+- setTextColor(value) — change text color. Value can be:
+   * a string like "#ff0066" or "tomato" → recolors ALL text on the site
+   * an object {"target":"<area>","color":"<css-color>"} where <area> is one of: "hero" (whole hero section), "heroTitle" (big H1 only), "heroSubtitle", "nav" / "header" (top navigation bar — brand + links), "features", "cta", "footer", "all"
+   * Mapping hints: "header" / "top bar" / "navigation" → target "header". "title" / "naslov" / "headline" → target "heroTitle". Do NOT confuse "header" (nav bar) with "heroTitle" (the big H1).
+- setBgColor(color) — change the site background to any CSS color (e.g. "#0b0b12", "midnightblue")
+- setAccentColor(color) — change accent/button color to any CSS color
 - hideSection(name) / showSection(name) — names: "nav","hero","features","social","cta","footer"
 - clearFeatures()
 - addFeature({"icon":"🚀","title":"...","desc":"..."})
@@ -98,6 +104,12 @@ Reply: Gotovo. <site-action>{"action":"setHeroTitle","value":"Dobro došli"}</si
 
 User: napravi sajt zelenim i sakrij features sekciju
 Reply: Evo. <site-action>{"action":"setTheme","value":"green"}</site-action><site-action>{"action":"hideSection","value":"features"}</site-action>
+
+User: napravi naslov crvenim
+Reply: Evo. <site-action>{"action":"setTextColor","value":{"target":"heroTitle","color":"#ff3344"}}</site-action>
+
+User: promeni boju teksta na ceo sajt u plavu
+Reply: Gotovo. <site-action>{"action":"setTextColor","value":"#1a66ff"}</site-action>
 
 User: dodaj feature o brzini
 Reply: Dodato. <site-action>{"action":"addFeature","value":{"icon":"⚡","title":"Ultra brzina","desc":"Odgovori u milisekundama."}}</site-action>

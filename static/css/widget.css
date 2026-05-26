@@ -21,6 +21,12 @@
   overflow-y: auto;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   color: #1a1a2e;
+  transition: background 450ms ease, color 450ms ease;
+}
+
+.fake-site,
+.fake-site * {
+  transition: background-color 450ms ease, background 450ms ease, color 450ms ease, border-color 450ms ease;
 }
 
 body.widget-mode .fake-site {
